@@ -79,7 +79,7 @@ def test_tuples_as_multi_value_options():
 
 def test_var_args():
     @command
-    def func(*args: Tuple[str]):
+    def func(*args: tuple):
         assert isinstance(args, tuple)
         for item in args:
             assert isinstance(item, str)
@@ -88,6 +88,18 @@ def test_var_args():
     result = CliRunner().invoke(func, ['peter', '1338'])
     assert result.exit_code == 0
     assert result.output == "args=('peter', '1338')\n"
+
+def test_var_args_generic():
+    @command
+    def func(*args: Tuple[int, ...]):
+        assert isinstance(args, tuple)
+        for item in args:
+            assert isinstance(item, int)
+        click.echo(f'args={args}')
+
+    result = CliRunner().invoke(func, ['123', '456'])
+    assert result.exit_code == 0
+    assert result.output == "args=(123, 456)\n"
 
 def test_injected_args():
     @command

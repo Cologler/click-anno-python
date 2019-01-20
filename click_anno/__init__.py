@@ -14,6 +14,19 @@ import click
 from .injectors import Injector, inject
 
 
+def get_var_pos_param_type(parameter):
+    if parameter.annotation is inspect.Parameter.empty:
+        return str
+    if parameter.annotation is tuple:
+        return str
+    if isinstance(parameter.annotation, typing._GenericAlias):
+        if parameter.annotation.__origin__ is tuple:
+            args = parameter.annotation.__args__
+            if len(args) == 2 and args[1] is Ellipsis:
+                return args[0]
+    raise ValueError(f'annotation of parameter {parameter.name} must be tuple or typing.Tuple[?, ...]')
+
+
 class ArgumentAdapter:
     def __init__(self, parameter):
         self._parameter = parameter
@@ -34,14 +47,7 @@ class ArgumentAdapter:
         self._click_decorator_attrs: dict = {}
 
         if parameter.annotation is not inspect.Parameter.empty:
-            if isinstance(parameter.annotation, typing._GenericAlias):
-                if parameter.annotation.__origin__ is tuple:
-                    self._click_decorator_attrs['type'] = parameter.annotation.__args__
-                else:
-                    raise NotImplementedError
-
-            else:
-                self._click_decorator_attrs['type'] = parameter.annotation
+            self._click_decorator_attrs['type'] = parameter.annotation
 
         if parameter.default is inspect.Parameter.empty:
             self._click_decorator_name = 'argument'
@@ -56,10 +62,7 @@ class ArgumentAdapter:
 
         elif parameter.kind is inspect.Parameter.VAR_POSITIONAL:
             self._click_decorator_attrs.setdefault('nargs', -1)
-            if 'type' in self._click_decorator_attrs:
-                argtype = self._click_decorator_attrs['type']
-                assert isinstance(argtype, tuple) and len(argtype) == 1
-                self._click_decorator_attrs['type'] = argtype[0]
+            self._click_decorator_attrs['type'] = get_var_pos_param_type(parameter)
 
         elif parameter.kind is inspect.Parameter.KEYWORD_ONLY:
             self._click_decorator_name = 'option'
