@@ -11,15 +11,7 @@ import typing
 import click
 
 
-class Injector:
-    def __init__(self, type):
-        assert type is click.Context
-        self._type = type
-
-    def get_value(self):
-        return click.get_current_context()
-
-inject = Injector
+from .injectors import Injector, inject
 
 
 class ArgumentAdapter:
