@@ -150,11 +150,4 @@ class CallableAdapter:
 
 def command(func):
     return CallableAdapter(func).create_command()
-    sign = inspect.signature(func)
-    args_adapters = []
-    for param in reversed(sign.parameters.values()):
-        adapter = ArgumentAdapter(param)
-        args_adapters.append(adapter)
-        decorator =  getattr(click, adapter.click_decorator_name)
-        func = decorator(*adapter.click_decorator_decls, **adapter.click_decorator_attrs)(func)
-    return click.command()(func)
+    
