@@ -19,7 +19,7 @@ def touch(filename):
 import click
 import click_anno
 
-@click.command
+@click_anno.command
 def touch(filename):
     click.echo(filename)
 ```
@@ -41,7 +41,7 @@ def copy(src, dst):
 import click
 import click_anno
 
-@command
+@click_anno.command
 def copy(src: tuple, dst):
     for fn in src:
         click.echo('move %s to folder %s' % (fn, dst))
@@ -62,7 +62,7 @@ def dots(n):
 import click
 import click_anno
 
-@command
+@click_anno.command
 def dots(n=1):
     click.echo('.' * n)
 ```
@@ -82,7 +82,7 @@ def dots(n):
 import click
 import click_anno
 
-@command
+@click_anno.command
 def dots(*, n: int):
     click.echo('.' * n)
 ```
@@ -103,7 +103,7 @@ from typing import Tuple
 import click
 import click_anno
 
-@command
+@click_anno.command
 def findme(*, pos: Tuple[float, float]):
     click.echo('%s / %s' % pos)
 ```
@@ -124,7 +124,7 @@ from typing import Tuple
 import click
 import click_anno
 
-@command
+@click_anno.command
 def putitem(*, item: (str, int)):
     click.echo('name=%s id=%d' % item)
 ```
