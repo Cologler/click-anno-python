@@ -18,6 +18,7 @@ long_description = long_description or ''
 
 setup(
     long_description=long_description,
+    long_description_content_type='text/markdown',
     packages=find_packages(),
     name='click_anno',
     version='0.0.1',
