@@ -20,7 +20,16 @@ class ClickContextInjector(Injector):
         return click.get_current_context()
 
 
+class ObjectInjector(Injector):
+    def __init__(self, object_type):
+        self._object_type = object_type
+
+    def get_value(self):
+        return click.get_current_context().find_object(self._object_type)
+
+
 def inject(type):
     if type is click.Context:
         return ClickContextInjector()
-    raise NotImplementedError
+    else:
+        return ObjectInjector(type)
