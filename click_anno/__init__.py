@@ -59,7 +59,7 @@ class ArgumentAdapter:
             self._click_decorator_attrs['required'] = True
 
         elif parameter.kind is inspect.Parameter.VAR_KEYWORD:
-            pass
+            raise RuntimeError('does not support var keyword parameters.')
 
         else:
             raise NotImplementedError
@@ -112,11 +112,15 @@ class ArgumentAdapter:
 
     def convert(self, args, kwargs, to_args: list, to_kwargs: dict):
         assert not args
+
         if self._injector:
             val = self._injector.get_value()
         else:
             val = kwargs.pop(self._parameter_key)
-        if self._parameter.kind is inspect.Parameter.VAR_POSITIONAL:
+
+        if self._parameter.kind is inspect.Parameter.POSITIONAL_OR_KEYWORD:
+            to_args.append(val)
+        elif self._parameter.kind is inspect.Parameter.VAR_POSITIONAL:
             to_args.extend(val)
         else:
             to_kwargs[self._parameter.name] = val
@@ -150,4 +154,3 @@ class CallableAdapter:
 
 def command(func):
     return CallableAdapter(func).create_command()
-    

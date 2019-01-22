@@ -110,3 +110,12 @@ def test_injected_args():
     result = CliRunner().invoke(func, ['123'])
     assert result.exit_code == 0
     assert result.output == "args=123\n"
+
+def test_all_type_args():
+    @command
+    def func(a, *b, c):
+        click.echo(f'a={a}, b={b}, c={c}')
+
+    result = CliRunner().invoke(func, ['A', 'B1', 'B2', '--c', 'C'])
+    assert result.exit_code == 0
+    assert result.output == "a=A, b=('B1', 'B2'), c=C\n"
