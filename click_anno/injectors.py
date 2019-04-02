@@ -50,13 +50,6 @@ def ensure(object_type: type):
     return EnsureObjectInjector(object_type)
 
 
-def inject(type):
-    if type is click.Context:
-        return ClickContextInjector()
-    else:
-        return EnsureObjectInjector(type)
-
-
 TYPE_INJECTOR_MAP = {
     click.Context: ClickContextInjector()
 }
