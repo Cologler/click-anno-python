@@ -93,3 +93,19 @@ def test_group():
     result = CliRunner().invoke(App, ['sync'])
     assert result.exit_code == 0
     assert result.output == 'Running\nSyncing\n'
+
+def test_alias():
+    @click_app
+    class App:
+        def sync(self):
+            click.echo('Syncing')
+
+        alias = sync
+
+    result = CliRunner().invoke(App, ['sync'])
+    assert result.exit_code == 0
+    assert result.output == 'Syncing\n'
+
+    result = CliRunner().invoke(App, ['alias'])
+    assert result.exit_code == 0
+    assert result.output == 'Syncing\n'

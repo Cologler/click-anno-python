@@ -140,7 +140,6 @@ def test_multi_level_group():
         def __init__(self, a):
             self._a = a
 
-        @attrs(name='sub-group')
         class SubGroup:
             def __init__(self, b):
                 self._b = b
@@ -150,4 +149,20 @@ def test_multi_level_group():
 
     result = CliRunner().invoke(App, ['1', 'sub-group', '2', 'method', '3'])
     assert result.output == "2, 3\n"
+    assert result.exit_code == 0
+
+def test_alias():
+    @click_app
+    class App:
+        def name(self, x):
+            click.echo(x)
+
+        alias = name
+
+    result = CliRunner().invoke(App, ['name', 'val'])
+    assert result.output == "val\n"
+    assert result.exit_code == 0
+
+    result = CliRunner().invoke(App, ['alias', 'val'])
+    assert result.output == "val\n"
     assert result.exit_code == 0
