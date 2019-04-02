@@ -10,7 +10,7 @@ import typing
 
 import click
 
-from .injectors import Injector, inject
+from .injectors import Injector, find, ensure, TYPE_INJECTOR_MAP
 
 
 def get_var_pos_param_type(parameter):
@@ -35,8 +35,9 @@ class ArgumentAdapter:
         self._click_decorator_attrs: dict = {}
         self._injector: Injector = None
 
-        if isinstance(parameter.annotation, Injector):
-            self._injector = parameter.annotation
+        anno = TYPE_INJECTOR_MAP.get(parameter.annotation, parameter.annotation)
+        if isinstance(anno, Injector):
+            self._injector = anno
         else:
             self._init_click_attrs()
 

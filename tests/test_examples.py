@@ -10,7 +10,7 @@ from typing import Tuple
 import click
 from click.testing import CliRunner
 
-from click_anno import command, inject
+from click_anno import command
 
 def test_basic_arguments():
     @command

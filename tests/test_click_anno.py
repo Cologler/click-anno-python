@@ -10,7 +10,7 @@ from typing import Tuple
 import click
 from click.testing import CliRunner
 
-from click_anno import command, inject
+from click_anno import command
 
 def test_non_arg():
     @command
@@ -103,7 +103,7 @@ def test_var_args_generic():
 
 def test_injected_args():
     @command
-    def func(a, ctx: inject(click.Context)):
+    def func(a, ctx: click.Context):
         assert isinstance(ctx, click.Context)
         click.echo(f'args={a}')
 
