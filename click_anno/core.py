@@ -25,26 +25,15 @@ def attrs(**kwargs):
     return wrapper
 
 
-def get_var_pos_param_type(parameter):
-    if parameter.annotation is inspect.Parameter.empty:
-        return str
-    if parameter.annotation is tuple:
-        return str
-    if isinstance(parameter.annotation, typing._GenericAlias):
-        if parameter.annotation.__origin__ is tuple:
-            args = parameter.annotation.__args__
-            if len(args) == 2 and args[1] is Ellipsis:
-                return args[0]
-    raise ValueError(f'annotation of parameter {parameter.name} must be tuple or typing.Tuple[?, ...]')
-
-
-_UNSET = inspect.Parameter.empty
+_UNSET = object()
 
 
 class ArgumentAdapter:
     @classmethod
     def from_parameter(cls, param: inspect.Parameter):
-        adapter = cls(param.name, param.kind, param.default, param.annotation)
+        default = _UNSET if param.default is inspect.Parameter.empty else param.default
+        annotation = _UNSET if param.annotation is inspect.Parameter.empty else param.annotation
+        adapter = cls(param.name, param.kind, default, annotation)
         return adapter
 
     @classmethod
@@ -79,7 +68,7 @@ class ArgumentAdapter:
         self._click_decorator_attrs: dict = {}
 
         if kind is inspect.Parameter.POSITIONAL_OR_KEYWORD:
-            if annotation is not inspect.Parameter.empty:
+            if annotation is not _UNSET:
                 if annotation is tuple:
                     self._click_decorator_attrs.setdefault('nargs', -1)
 
@@ -96,7 +85,7 @@ class ArgumentAdapter:
         else:
             raise NotImplementedError
 
-        if annotation is not inspect.Parameter.empty:
+        if annotation is not _UNSET:
             if annotation is tuple:
                 self._click_decorator_attrs.setdefault('nargs', -1)
             elif isinstance(annotation, typing._GenericAlias):
