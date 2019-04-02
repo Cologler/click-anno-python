@@ -165,3 +165,18 @@ class App:
     def sync(self):
         click.echo('Syncing')
 ```
+
+### Alias
+
+``` py
+# click
+# does not support
+
+# click_anno
+@click_app
+class App:
+    def sync(self):
+        click.echo('Syncing')
+
+    alias = sync
+```
