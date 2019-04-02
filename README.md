@@ -1,5 +1,9 @@
 # click-anno
 
+![GitHub](https://img.shields.io/github/license/Cologler/click-anno-python.svg)
+[![Build Status](https://travis-ci.com/Cologler/click-anno-python.svg?branch=master)](https://travis-ci.com/Cologler/click-anno-python)
+![PyPI](https://img.shields.io/pypi/v/click_anno.svg)
+
 use annotation to create click app.
 
 ## Compare with click api
