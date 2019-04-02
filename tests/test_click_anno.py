@@ -10,7 +10,7 @@ from typing import Tuple
 import click
 from click.testing import CliRunner
 
-from click_anno import command, inject
+from click_anno import command, click_app, attrs
 
 def test_non_arg():
     @command
@@ -103,10 +103,51 @@ def test_var_args_generic():
 
 def test_injected_args():
     @command
-    def func(a, ctx: inject(click.Context)):
+    def func(a, ctx: click.Context):
         assert isinstance(ctx, click.Context)
         click.echo(f'args={a}')
 
     result = CliRunner().invoke(func, ['123'])
     assert result.exit_code == 0
     assert result.output == "args=123\n"
+
+def test_all_type_args():
+    @command
+    def func(a, *b, c):
+        click.echo(f'a={a}, b={b}, c={c}')
+
+    result = CliRunner().invoke(func, ['A', 'B1', 'B2', '--c', 'C'])
+    assert result.exit_code == 0
+    assert result.output == "a=A, b=('B1', 'B2'), c=C\n"
+
+def test_group():
+    @click_app
+    class App:
+        def __init__(self, a, b):
+            self._a = a
+            self._b = b
+
+        def method(self, e):
+            click.echo(', '.join([self._a, self._b, e]))
+
+    result = CliRunner().invoke(App, ['1', '2', 'method', '3'])
+    assert result.exit_code == 0
+    assert result.output == "1, 2, 3\n"
+
+def test_multi_level_group():
+    @click_app
+    class App:
+        def __init__(self, a):
+            self._a = a
+
+        @attrs(name='sub-group')
+        class SubGroup:
+            def __init__(self, b):
+                self._b = b
+
+            def method(self, e):
+                click.echo(', '.join([self._b, e]))
+
+    result = CliRunner().invoke(App, ['1', 'sub-group', '2', 'method', '3'])
+    assert result.output == "2, 3\n"
+    assert result.exit_code == 0

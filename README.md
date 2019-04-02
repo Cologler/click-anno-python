@@ -128,3 +128,40 @@ import click_anno
 def putitem(*, item: (str, int)):
     click.echo('name=%s id=%d' % item)
 ```
+
+### Inject Context
+
+``` py
+# click
+@command()
+@click.pass_context
+def sync(ctx): # `ctx` must be the 1st arg
+    click.echo(str(type(ctx)))
+
+# click_anno
+@command
+def sync(a, ctx: click.Context, b): # `ctx` can be any location
+    click.echo(str(type(ctx)))
+```
+
+### Group
+
+``` py
+# click
+@click.group()
+def cli():
+    click.echo('Running')
+
+@cli.command()
+def sync():
+    click.echo('Syncing')
+
+# click_anno
+@click_app
+class App:
+    def __init__(self):
+        click.echo('Running')
+
+    def sync(self):
+        click.echo('Syncing')
+```

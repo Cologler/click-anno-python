@@ -10,7 +10,7 @@ from typing import Tuple
 import click
 from click.testing import CliRunner
 
-from click_anno import command, inject
+from click_anno import command, click_app
 
 def test_basic_arguments():
     @command
@@ -70,3 +70,26 @@ def test_tuples_as_multi_value_options():
     result = CliRunner().invoke(putitem, ['--item', 'peter', '1338'])
     assert result.exit_code == 0
     assert result.output == 'name=peter id=1338\n'
+
+def test_inject_context():
+    @command
+    def sync(a, ctx: click.Context, b): # `ctx` can be any location
+        assert isinstance(ctx, click.Context)
+        click.echo(f'{a}, {b}')
+
+    result = CliRunner().invoke(sync, ['1', '2'])
+    assert result.exit_code == 0
+    assert result.output == '1, 2\n'
+
+def test_group():
+    @click_app
+    class App:
+        def __init__(self):
+            click.echo('Running')
+
+        def sync(self):
+            click.echo('Syncing')
+
+    result = CliRunner().invoke(App, ['sync'])
+    assert result.exit_code == 0
+    assert result.output == 'Running\nSyncing\n'
