@@ -213,9 +213,12 @@ def click_app(cls, *,
     def prepare_attrs(base_group: click.Group, cmd, *, name, format_func):
         attrs: dict = getattr(cmd, _KEY_ATTRS, {}).copy()
         cmd_name = format_func(cmd, name)
-        if isinstance(base_group, click.Group) and attrs.get('name', -1) in base_group.commands:
-            # this group is alias
+        if name != cmd.__name__:
+            # this is alias
             attrs['name'] = cmd_name
+            attrs['help'] = f'alias of command ({format_func(cmd, cmd.__name__)})'
+
+        #if isinstance(base_group, click.Group) and attrs.get('name', -1) in base_group.commands:
         else:
             attrs.setdefault('name', cmd_name)
         return attrs
