@@ -140,7 +140,6 @@ def test_multi_level_group():
         def __init__(self, a):
             self._a = a
 
-        @attrs(name='sub-group')
         class SubGroup:
             def __init__(self, b):
                 self._b = b

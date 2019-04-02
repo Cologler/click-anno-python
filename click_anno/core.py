@@ -184,7 +184,17 @@ def command(func):
     return click.command(**attrs)(wrapped_func)
 
 
-def click_app(cls):
+def default_command_name_format(command, name):
+    return name.lower().replace('_', '-')
+
+def default_group_name_format(command, name):
+    from .snake_case import convert
+    return convert(name).replace('_', '-')
+
+
+def click_app(cls, *,
+    group_name_format = default_group_name_format,
+    command_name_format = default_command_name_format):
     def create_init_wrapper(cls_):
         @functools.wraps(cls_)
         def init_wrapper(*args, **kwargs):
@@ -200,25 +210,37 @@ def click_app(cls):
             return func(instance, *args, **kwargs)
         return method_wrapper
 
-    def append_command(base_group, cmd_name, cmd):
-        attrs = getattr(cmd, _KEY_ATTRS, {})
+    def prepare_attrs(base_group: click.Group, cmd, *, name, format_func):
+        attrs: dict = getattr(cmd, _KEY_ATTRS, {}).copy()
+        cmd_name = format_func(cmd, name)
+        if isinstance(base_group, click.Group) and attrs.get('name', -1) in base_group.commands:
+            # this group is alias
+            attrs['name'] = cmd_name
+        else:
+            attrs.setdefault('name', cmd_name)
+        return attrs
+
+    def append_command(base_group, cmd, *, name):
+        attrs = prepare_attrs(base_group, cmd, name=name, format_func=command_name_format)
+
         adapter = CallableAdapter(create_method_wrapper(cmd))
         adapter.args_adapters.extend(ArgumentAdapter.from_callable(cmd))
         adapter.args_adapters.pop(0) # remove arg `self`
         base_group.command(**attrs)(adapter.get_wrapped_func())
 
-    def make_group(base_group, cls_):
+    def make_group(base_group, cls_, *, name):
+        attrs = prepare_attrs(base_group, cls_, name=name, format_func=group_name_format)
+
         func = create_init_wrapper(cls_)
-        attrs = getattr(cls_, _KEY_ATTRS, {})
         adapter = CallableAdapter(func)
         adapter.args_adapters.extend(ArgumentAdapter.from_callable(cls_))
         group = base_group.group(**attrs)(adapter.get_wrapped_func())
         for name, sub_cmd in vars(cls_).items():
             if name[:1] != '_':
                 if isinstance(sub_cmd, type):
-                    make_group(group, sub_cmd)
+                    make_group(group, sub_cmd, name=name)
                 elif callable(sub_cmd):
-                    append_command(group, name, sub_cmd)
+                    append_command(group, sub_cmd, name=name)
         return group
 
-    return make_group(click, cls)
+    return make_group(click, cls, name=cls.__name__)
