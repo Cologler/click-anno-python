@@ -134,6 +134,20 @@ def test_group():
     assert result.exit_code == 0
     assert result.output == "1, 2, 3\n"
 
+def test_group_custom():
+    @click_app(command_name_format=lambda cmd, name: name.upper())
+    class App:
+        def __init__(self, a, b):
+            self._a = a
+            self._b = b
+
+        def method(self, e):
+            click.echo(', '.join([self._a, self._b, e]))
+
+    result = CliRunner().invoke(App, ['1', '2', 'METHOD', '3'])
+    assert result.exit_code == 0
+    assert result.output == "1, 2, 3\n"
+
 def test_multi_level_group():
     @click_app
     class App:

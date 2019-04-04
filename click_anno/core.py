@@ -203,9 +203,10 @@ def create_method_wrapper(func):
 
 class GroupBuilder:
 
-    def __init__(self, group):
+    def __init__(self, group, *, root_builder=None):
         self.group = group
         self.command_name_map = {}
+        self.root_builder = root_builder or self
 
     def add_group(self, func, attrs):
         return self.group.group(**attrs)(func)
@@ -228,7 +229,9 @@ class GroupBuilder:
         return attrs
 
     def make_command(self, cmd, *, name):
-        attrs = self.prepare_attrs(cmd, name=name, format_func=self.command_name_format)
+        print(vars(self))
+        print(self.command_name_format.__code__)
+        attrs = self.prepare_attrs(cmd, name=name, format_func=self.root_builder.command_name_format)
 
         adapter = CallableAdapter(create_method_wrapper(cmd))
         adapter.args_adapters.extend(ArgumentAdapter.from_callable(cmd))
@@ -236,14 +239,14 @@ class GroupBuilder:
         self.add_command(adapter.get_wrapped_func(), attrs)
 
     def make_group(self, cls, *, name):
-        attrs = self.prepare_attrs(cls, name=name, format_func=self.group_name_format)
+        attrs = self.prepare_attrs(cls, name=name, format_func=self.root_builder.group_name_format)
 
         func = create_init_wrapper(cls)
         adapter = CallableAdapter(func)
         adapter.args_adapters.extend(ArgumentAdapter.from_callable(cls))
         group = self.add_group(adapter.get_wrapped_func(), attrs)
 
-        group_builder = GroupBuilder(group)
+        group_builder = GroupBuilder(group, root_builder=self.root_builder)
         for name, sub_cmd in self.iter_subcommands(cls):
             if isinstance(sub_cmd, type):
                 group_builder.make_group(sub_cmd, name=name)
@@ -264,7 +267,11 @@ class GroupBuilder:
                 yield name, sub_cmd
 
 
-def click_app(cls, **kwargs):
-    group_builder = GroupBuilder(click)
-    vars(group_builder).update(kwargs)
-    return group_builder.make_group(cls, name=cls.__name__)
+def click_app(cls=None, **kwargs):
+    def warpper(cls):
+        group_builder = GroupBuilder(click)
+        vars(group_builder).update(kwargs)
+        print(vars(group_builder))
+        return group_builder.make_group(cls, name=cls.__name__)
+
+    return warpper(cls) if cls else warpper
