@@ -18,7 +18,15 @@ _KEY_ATTRS = '__click_anno_attrs'
 
 def attrs(**kwargs):
     '''
-    add attrs to callable
+    append attrs to command or group like:
+
+    ``` py
+    @click_app
+    @attrs(...)
+    class ...
+    ```
+
+    attrs will pass into `click` module.
     '''
     def wrapper(type_or_func):
         setattr(type_or_func, _KEY_ATTRS, dict(kwargs))
@@ -179,7 +187,10 @@ class CallableAdapter:
         return func
 
 
-def command(func):
+def command(func) -> click.Command:
+    '''
+    build a `function` as a `click.Command`.
+    '''
     wrapped_func = CallableAdapter.from_func(func).get_wrapped_func()
     attrs = getattr(func, _KEY_ATTRS, {})
     return click.command(**attrs)(wrapped_func)
@@ -267,7 +278,13 @@ class GroupBuilder:
                 yield name, sub_cmd
 
 
-def click_app(cls=None, **kwargs):
+def click_app(cls: type = None, **kwargs) -> click.Group:
+    '''
+    build a `class` as a `click.Group`.
+
+    use `kwargs` to override any methods of `GroupBuilder`.
+    '''
+
     def warpper(cls):
         group_builder = GroupBuilder(click)
         vars(group_builder).update(kwargs)
