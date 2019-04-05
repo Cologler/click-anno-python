@@ -212,12 +212,20 @@ def create_method_wrapper(func):
     return method_wrapper
 
 
+class GroupBuilderOptions:
+    def group_name_format(self, command, name):
+        return sc_convert(name).replace('_', '-')
+
+    def command_name_format(self, command, name):
+        return name.lower().replace('_', '-')
+
+
 class GroupBuilder:
 
-    def __init__(self, group, *, root_builder=None):
+    def __init__(self, group, options: GroupBuilderOptions):
         self.group = group
         self.command_name_map = {}
-        self.root_builder = root_builder or self
+        self.options = options
 
     def add_group(self, func, attrs):
         return self.group.group(**attrs)(func)
@@ -240,9 +248,7 @@ class GroupBuilder:
         return attrs
 
     def make_command(self, cmd, *, name):
-        print(vars(self))
-        print(self.command_name_format.__code__)
-        attrs = self.prepare_attrs(cmd, name=name, format_func=self.root_builder.command_name_format)
+        attrs = self.prepare_attrs(cmd, name=name, format_func=self.options.command_name_format)
 
         adapter = CallableAdapter(create_method_wrapper(cmd))
         adapter.args_adapters.extend(ArgumentAdapter.from_callable(cmd))
@@ -250,14 +256,14 @@ class GroupBuilder:
         self.add_command(adapter.get_wrapped_func(), attrs)
 
     def make_group(self, cls, *, name):
-        attrs = self.prepare_attrs(cls, name=name, format_func=self.root_builder.group_name_format)
+        attrs = self.prepare_attrs(cls, name=name, format_func=self.options.group_name_format)
 
         func = create_init_wrapper(cls)
         adapter = CallableAdapter(func)
         adapter.args_adapters.extend(ArgumentAdapter.from_callable(cls))
         group = self.add_group(adapter.get_wrapped_func(), attrs)
 
-        group_builder = GroupBuilder(group, root_builder=self.root_builder)
+        group_builder = GroupBuilder(group, self.options)
         for name, sub_cmd in self.iter_subcommands(cls):
             if isinstance(sub_cmd, type):
                 group_builder.make_group(sub_cmd, name=name)
@@ -265,12 +271,6 @@ class GroupBuilder:
                 group_builder.make_command(sub_cmd, name=name)
 
         return group
-
-    def group_name_format(self, command, name):
-        return sc_convert(name).replace('_', '-')
-
-    def command_name_format(self, command, name):
-        return name.lower().replace('_', '-')
 
     def iter_subcommands(self, cls):
         for name, sub_cmd in vars(cls).items():
@@ -282,13 +282,13 @@ def click_app(cls: type = None, **kwargs) -> click.Group:
     '''
     build a `class` as a `click.Group`.
 
-    use `kwargs` to override any methods of `GroupBuilder`.
+    use `kwargs` to override members of `GroupBuilderOptions`.
     '''
 
     def warpper(cls):
-        group_builder = GroupBuilder(click)
-        vars(group_builder).update(kwargs)
-        print(vars(group_builder))
+        options = GroupBuilderOptions()
+        vars(options).update(kwargs)
+        group_builder = GroupBuilder(click, options)
         return group_builder.make_group(cls, name=cls.__name__)
 
     return warpper(cls) if cls else warpper
