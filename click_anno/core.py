@@ -213,6 +213,8 @@ def create_method_wrapper(func):
 
 
 class GroupBuilderOptions:
+    allow_inherit = False
+
     def group_name_format(self, command, name):
         return sc_convert(name).replace('_', '-')
 
@@ -264,7 +266,13 @@ class GroupBuilder:
         group = self.add_group(adapter.get_wrapped_func(), attrs)
 
         group_builder = GroupBuilder(group, self.options)
-        for name, sub_cmd in self.iter_subcommands(cls):
+
+        if self.options.allow_inherit:
+            iter_subcommands = self.iter_subcommands_allow_inherit(cls)
+        else:
+            iter_subcommands = self.iter_subcommands_not_inherit(cls)
+
+        for name, sub_cmd in iter_subcommands:
             if isinstance(sub_cmd, type):
                 group_builder.make_group(sub_cmd, name=name)
             elif callable(sub_cmd):
@@ -272,10 +280,15 @@ class GroupBuilder:
 
         return group
 
-    def iter_subcommands(self, cls):
+    def iter_subcommands_not_inherit(self, cls):
         for name, sub_cmd in vars(cls).items():
             if name[:1] != '_':
                 yield name, sub_cmd
+
+    def iter_subcommands_allow_inherit(self, cls):
+        for name in dir(cls):
+            if name[:1] != '_':
+                yield name, getattr(cls, name)
 
 
 def click_app(cls: type = None, **kwargs) -> click.Group:

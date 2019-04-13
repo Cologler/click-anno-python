@@ -180,3 +180,28 @@ def test_alias():
     result = CliRunner().invoke(App, ['alias', 'val'])
     assert result.output == "val\n"
     assert result.exit_code == 0
+
+def test_click_app_not_inherit():
+    class Base:
+        def age(self):
+            click.echo('age')
+
+    @click_app
+    class App(Base):
+        pass
+
+    result = CliRunner().invoke(App, ['age'])
+    assert result.exit_code != 0
+
+def test_click_app_allow_inherit():
+    class Base:
+        def age(self):
+            click.echo('age')
+
+    @click_app(allow_inherit=True)
+    class App(Base):
+        pass
+
+    result = CliRunner().invoke(App, ['age'])
+    assert result.output == "age\n"
+    assert result.exit_code == 0
