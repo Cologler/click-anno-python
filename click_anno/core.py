@@ -125,7 +125,8 @@ class ArgumentAdapter:
                 self._click_decorator_name = 'option'
 
         if default is not _UNSET:
-            self._click_decorator_attrs.setdefault('type', type(default))
+            if default is not None:
+                self._click_decorator_attrs.setdefault('type', type(default))
             self._click_decorator_attrs['default'] = default
             self._click_decorator_attrs['show_default'] = True
 
