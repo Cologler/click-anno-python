@@ -134,6 +134,20 @@ def test_group():
     assert result.exit_code == 0
     assert result.output == "1, 2, 3\n"
 
+def test_group_custom():
+    @click_app(command_name_format=lambda cmd, name: name.upper())
+    class App:
+        def __init__(self, a, b):
+            self._a = a
+            self._b = b
+
+        def method(self, e):
+            click.echo(', '.join([self._a, self._b, e]))
+
+    result = CliRunner().invoke(App, ['1', '2', 'METHOD', '3'])
+    assert result.exit_code == 0
+    assert result.output == "1, 2, 3\n"
+
 def test_multi_level_group():
     @click_app
     class App:
@@ -165,4 +179,29 @@ def test_alias():
 
     result = CliRunner().invoke(App, ['alias', 'val'])
     assert result.output == "val\n"
+    assert result.exit_code == 0
+
+def test_click_app_not_inherit():
+    class Base:
+        def age(self):
+            click.echo('age')
+
+    @click_app
+    class App(Base):
+        pass
+
+    result = CliRunner().invoke(App, ['age'])
+    assert result.exit_code != 0
+
+def test_click_app_allow_inherit():
+    class Base:
+        def age(self):
+            click.echo('age')
+
+    @click_app(allow_inherit=True)
+    class App(Base):
+        pass
+
+    result = CliRunner().invoke(App, ['age'])
+    assert result.output == "age\n"
     assert result.exit_code == 0
