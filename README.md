@@ -133,6 +133,27 @@ def putitem(*, item: (str, int)):
     click.echo('name=%s id=%d' % item)
 ```
 
+### Boolean Flags
+
+``` py
+# click
+import click
+
+@click.command()
+@click.option('--shout', is_flag=True)
+def info(shout):
+    click.echo(f'{shout!r}')
+
+# click_anno
+import click
+from click_anno import command
+from click_anno.types import flag
+
+@command
+def func(shout: flag):
+    click.echo(f'{shout!r}')
+```
+
 ### Inject Context
 
 ``` py
