@@ -13,7 +13,7 @@ import click
 
 from .injectors import Injector, find, ensure, TYPE_INJECTOR_MAP
 from .snake_case import convert as sc_convert
-from .types import flag
+from .types import flag, Enum, _EnumChoice
 
 _KEY_ATTRS = '__click_anno_attrs'
 
@@ -95,34 +95,7 @@ class ArgumentAdapter:
         else:
             raise NotImplementedError
 
-        if annotation is not _UNSET:
-            if annotation is tuple:
-                self._click_decorator_attrs.setdefault('nargs', -1)
-
-            elif annotation is flag:
-                self._click_decorator_name = 'option'
-                self._click_decorator_attrs['is_flag'] = True
-
-            elif isinstance(annotation, typing._GenericAlias):
-                if annotation.__origin__ is tuple:
-                    args = annotation.__args__
-                    if kind is inspect.Parameter.VAR_POSITIONAL:
-                        if len(args) == 2 and args[1] is Ellipsis:
-                            self._click_decorator_attrs['type'] = args[0]
-                        else:
-                            raise ValueError(\
-                                f'annotation of parameter {self._parameter_name} must be tuple or typing.Tuple[?, ...]')
-                    else:
-                        if any(x is not args[0] for x in args):
-                            raise ValueError(\
-                                f'annotation of parameter {self._parameter_name} must be same types')
-                        else:
-                            self._click_decorator_attrs.setdefault('nargs', len(args))
-                            self._click_decorator_attrs['type'] = args[0]
-                else:
-                    raise ValueError('generic type must be typing.Tuple')
-            else:
-                self._click_decorator_attrs.setdefault('type', annotation)
+        self._init_click_type()
 
         if self._click_decorator_name is None:
             if default is _UNSET:
@@ -141,6 +114,49 @@ class ArgumentAdapter:
         self._click_decorator_decls.append(self._parameter_key)
 
         assert self._click_decorator_name in ('argument', 'option')
+
+    def _init_click_type(self):
+        kind = self._parameter_kind
+        annotation = self._parameter_annotation
+
+        if annotation is _UNSET:
+            return
+
+        elif annotation is tuple:
+            self._click_decorator_attrs.setdefault('nargs', -1)
+            return
+
+        elif annotation is flag:
+            self._click_decorator_name = 'option'
+            self._click_decorator_attrs['is_flag'] = True
+            return
+
+        elif isinstance(annotation, type):
+            if issubclass(annotation, Enum):
+                self._click_decorator_attrs['type'] = _EnumChoice(annotation)
+
+        elif isinstance(annotation, typing._GenericAlias):
+            # for `Tuple[?]`
+            if annotation.__origin__ is tuple:
+                args = annotation.__args__
+                if kind is inspect.Parameter.VAR_POSITIONAL:
+                    if len(args) == 2 and args[1] is Ellipsis:
+                        self._click_decorator_attrs['type'] = args[0]
+                    else:
+                        raise ValueError(\
+                            f'annotation of parameter {self._parameter_name} must be tuple or typing.Tuple[?, ...]')
+                else:
+                    if any(x is not args[0] for x in args):
+                        raise ValueError(\
+                            f'annotation of parameter {self._parameter_name} must be same types')
+                    else:
+                        self._click_decorator_attrs.setdefault('nargs', len(args))
+                        self._click_decorator_attrs['type'] = args[0]
+            else:
+                raise ValueError('generic type must be typing.Tuple')
+
+        self._click_decorator_attrs.setdefault('type', annotation)
+
 
     def get_click_decorator(self):
         if self._click_decorator_name:

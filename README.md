@@ -191,6 +191,31 @@ class App:
         click.echo('Syncing')
 ```
 
+## Extensions
+
+### Enum
+
+Enum is **NOT** `Choice`.
+
+``` py
+# click
+# does not support
+
+# click_anno
+import click
+from click_anno import command
+from enum import Enum, auto
+
+class HashTypes(Enum):
+    md5 = auto()
+    sha1 = auto()
+
+@command
+def digest(hash_type: HashTypes):
+    assert isinstance(hash_type, HashTypes)
+    click.echo(hash_type)
+```
+
 ### Alias
 
 ``` py
