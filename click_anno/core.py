@@ -13,6 +13,7 @@ import click
 
 from .injectors import Injector, find, ensure, TYPE_INJECTOR_MAP
 from .snake_case import convert as sc_convert
+from .types import flag
 
 _KEY_ATTRS = '__click_anno_attrs'
 
@@ -97,6 +98,11 @@ class ArgumentAdapter:
         if annotation is not _UNSET:
             if annotation is tuple:
                 self._click_decorator_attrs.setdefault('nargs', -1)
+
+            elif annotation is flag:
+                self._click_decorator_name = 'option'
+                self._click_decorator_attrs['is_flag'] = True
+
             elif isinstance(annotation, typing._GenericAlias):
                 if annotation.__origin__ is tuple:
                     args = annotation.__args__
@@ -125,7 +131,8 @@ class ArgumentAdapter:
                 self._click_decorator_name = 'option'
 
         if default is not _UNSET:
-            self._click_decorator_attrs.setdefault('type', type(default))
+            if default is not None:
+                self._click_decorator_attrs.setdefault('type', type(default))
             self._click_decorator_attrs['default'] = default
             self._click_decorator_attrs['show_default'] = True
 

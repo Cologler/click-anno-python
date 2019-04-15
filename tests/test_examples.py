@@ -71,6 +71,19 @@ def test_tuples_as_multi_value_options():
     assert result.exit_code == 0
     assert result.output == 'name=peter id=1338\n'
 
+def test_boolean_flags():
+    import click
+    from click_anno import command
+    from click_anno.types import flag
+
+    @command
+    def func(shout: flag):
+        click.echo(f'{shout!r}')
+
+    result = CliRunner().invoke(func, ['--shout'])
+    assert result.exit_code == 0
+    assert result.output == 'True\n'
+
 def test_inject_context():
     @command
     def sync(a, ctx: click.Context, b): # `ctx` can be any location
