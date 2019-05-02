@@ -24,3 +24,24 @@ def test_flag():
     result = CliRunner().invoke(func, ['--is-ok'])
     assert result.exit_code == 0
     assert result.output == 'True\n'
+
+def test_enum():
+    from enum import Enum, auto
+
+    class Kind(Enum):
+        a = auto()
+        b = auto()
+        c_d = auto()
+
+    @command
+    def func(kind: Kind):
+        assert isinstance(kind, Kind)
+        click.echo(f'{kind.name}')
+
+    result = CliRunner().invoke(func, ['a'])
+    assert result.exit_code == 0
+    assert result.output == 'a\n'
+
+    result = CliRunner().invoke(func, ['c-d'])
+    assert result.exit_code == 0
+    assert result.output == 'c_d\n'

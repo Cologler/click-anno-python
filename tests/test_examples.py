@@ -122,3 +122,21 @@ def test_alias():
     result = CliRunner().invoke(App, ['alias'])
     assert result.exit_code == 0
     assert result.output == 'Syncing\n'
+
+def test_enum():
+    import click
+    from click_anno import command
+    from enum import Enum, auto
+
+    class HashTypes(Enum):
+        md5 = auto()
+        sha1 = auto()
+
+    @command
+    def digest(hash_type: HashTypes):
+        assert isinstance(hash_type, HashTypes)
+        click.echo(hash_type)
+
+    result = CliRunner().invoke(digest, ['md5'])
+    assert result.exit_code == 0
+    assert result.output == 'HashTypes.md5\n'
