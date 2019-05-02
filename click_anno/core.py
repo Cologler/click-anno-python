@@ -82,8 +82,17 @@ class ClickParameterBuilder:
     def set_name(self, name):
         assert self.ptype is not None
 
+        cname = name.replace('_', '-')
+
         if self.ptype == self.TYPE_OPTION:
-            self.decls.append('--' + name.replace('_', '-'))
+            if self.attrs.get('type') is bool:
+                # if not del `type`, will raise:
+                # TypeError: Got secondary option for non boolean flag.
+                del self.attrs['type']
+                self.decls.append(f'--{cname}/--no-{cname}')
+            else:
+                self.decls.append('--' + cname)
+
         self.decls.append(name)
 
 
@@ -146,7 +155,7 @@ class ArgumentAdapter:
             self._builder.ptype = ClickParameterBuilder.TYPE_ARGUMENT
         elif kind is inspect.Parameter.KEYWORD_ONLY:
             self._builder.ptype = ClickParameterBuilder.TYPE_OPTION
-        elif annotation is flag:
+        elif annotation in (flag, bool):
             self._builder.ptype = ClickParameterBuilder.TYPE_OPTION
         elif default is _UNSET:
             self._builder.ptype = ClickParameterBuilder.TYPE_ARGUMENT
