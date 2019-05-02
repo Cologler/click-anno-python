@@ -55,14 +55,24 @@ class ClickParameterBuilder:
     def set_nargs(self, value: int):
         '''set nargs, -1 for var len.'''
         assert self.ptype is not None
-        assert 'nargs' not in self.attrs
-        self.attrs['nargs'] = value
+        try:
+            assert self.attrs['nargs'] == value
+        except KeyError:
+            self.attrs['nargs'] = value
+
+    def set_flag(self):
+        self.attrs['is_flag'] = True
 
     def set_default(self, value):
         assert self.ptype is not None
 
-        if value is not None:
+        if self.attrs.get('is_flag', False):
+            # click is unable to parse flag as bool
+            # so keep it has no type.
+            pass
+        elif value is not None:
             self.attrs.setdefault('type', type(value))
+
         self.attrs['default'] = value
 
         if self.ptype == self.TYPE_OPTION:
@@ -108,6 +118,9 @@ class ArgumentAdapter:
         return [cls.from_parameter(*z) for z in zip(sign.parameters.values(), param_kinds)]
 
     def __init__(self, param_name: str, param_kind: inspect._ParameterKind, param_def, param_anno):
+        if param_kind is inspect.Parameter.VAR_KEYWORD:
+            raise RuntimeError('click does not support dynamic options.')
+
         self._parameter_name: str = param_name # this name use for pass to the function
         self._parameter_key: str = param_name.strip('_') # this key use for get value from click args
         self._parameter_annotation = param_anno
@@ -141,9 +154,7 @@ class ArgumentAdapter:
             self._builder.ptype = ClickParameterBuilder.TYPE_OPTION
 
         if kind is inspect.Parameter.VAR_POSITIONAL:
-            self._builder.attrs.setdefault('nargs', -1)
-        elif kind is inspect.Parameter.VAR_KEYWORD:
-            raise RuntimeError('click does not support dynamic options.')
+            self._builder.set_nargs(-1)
 
         self._init_click_type()
 
@@ -163,12 +174,10 @@ class ArgumentAdapter:
             return
 
         elif annotation is tuple:
-            self._builder.attrs.setdefault('nargs', -1)
-            return
+            return self._builder.set_nargs(-1)
 
         elif annotation is flag:
-            self._builder.attrs['is_flag'] = True
-            return
+            return self._builder.set_flag()
 
         elif isinstance(annotation, type):
             if issubclass(annotation, Enum):

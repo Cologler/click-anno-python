@@ -8,6 +8,7 @@
 from pytest import raises
 
 from click_anno.core import ArgumentAdapter, ClickParameterBuilder
+from click_anno.types import flag
 
 def test_args():
     def func(name):
@@ -96,3 +97,39 @@ def test_all_types_args():
     assert builder.ptype == ClickParameterBuilder.TYPE_OPTION
     assert builder.decls == ['--e', 'e']
     assert builder.attrs == {'type': int, 'default': 2, 'show_default': True}
+
+def test_flag():
+    from click_anno.types import flag
+
+    def func(value: flag):
+        pass
+
+    param, = ArgumentAdapter.from_callable(func)
+    builder: ClickParameterBuilder = param._builder
+    assert builder.ptype == ClickParameterBuilder.TYPE_OPTION
+    assert builder.decls == ['--value', 'value']
+    assert builder.attrs == {'is_flag': True, 'required': True}
+
+def test_flag_with_default_false():
+    from click_anno.types import flag
+
+    def func(value: flag = False):
+        pass
+
+    param, = ArgumentAdapter.from_callable(func)
+    builder: ClickParameterBuilder = param._builder
+    assert builder.ptype == ClickParameterBuilder.TYPE_OPTION
+    assert builder.decls == ['--value', 'value']
+    assert builder.attrs == {'is_flag': True, 'default': False, 'show_default': True}
+
+def test_flag_with_default_true():
+    from click_anno.types import flag
+
+    def func(value: flag = True):
+        pass
+
+    param, = ArgumentAdapter.from_callable(func)
+    builder: ClickParameterBuilder = param._builder
+    assert builder.ptype == ClickParameterBuilder.TYPE_OPTION
+    assert builder.decls == ['--value', 'value']
+    assert builder.attrs == {'is_flag': True, 'default': True, 'show_default': True}

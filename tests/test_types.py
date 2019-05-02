@@ -25,6 +25,36 @@ def test_flag():
     assert result.exit_code == 0
     assert result.output == 'True\n'
 
+def test_flag_with_default_false():
+    from click_anno.types import flag
+
+    @command
+    def func(is_ok: flag = False):
+        click.echo(f'{is_ok!r}')
+
+    result = CliRunner().invoke(func, [])
+    assert result.exit_code == 0
+    assert result.output == 'False\n'
+
+    result = CliRunner().invoke(func, ['--is-ok'])
+    assert result.exit_code == 0
+    assert result.output == 'True\n'
+
+def test_flag_with_default_true():
+    from click_anno.types import flag
+
+    @command
+    def func(is_ok: flag = True):
+        click.echo(f'{is_ok!r}')
+
+    result = CliRunner().invoke(func, [])
+    assert result.exit_code == 0
+    assert result.output == 'True\n'
+
+    result = CliRunner().invoke(func, ['--is-ok'])
+    assert result.exit_code == 0
+    assert result.output == 'False\n'
+
 def test_enum():
     from enum import Enum, auto
 
