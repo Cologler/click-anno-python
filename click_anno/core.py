@@ -82,16 +82,30 @@ _UNSET = object()
 
 class ArgumentAdapter:
     @classmethod
-    def from_parameter(cls, param: inspect.Parameter):
+    def from_parameter(cls, param: inspect.Parameter, kind=None):
         default = _UNSET if param.default is inspect.Parameter.empty else param.default
         annotation = _UNSET if param.annotation is inspect.Parameter.empty else param.annotation
-        adapter = cls(param.name, param.kind, default, annotation)
+        if kind is None:
+            kind = param.kind
+        adapter = cls(param.name, kind, default, annotation)
         return adapter
 
     @classmethod
     def from_callable(cls, func) -> list:
         sign = inspect.signature(func)
-        return [cls.from_parameter(param) for param in sign.parameters.values()]
+
+        # if contains var pos args
+        # all before it should be TYPE_ARGUMENT
+        param_kinds = [z.kind for z in sign.parameters.values()]
+        try:
+            index = param_kinds.index(inspect.Parameter.VAR_POSITIONAL)
+        except ValueError:
+            index = 0
+        while index:
+            index -= 1
+            param_kinds[index] = inspect.Parameter.POSITIONAL_ONLY
+
+        return [cls.from_parameter(*z) for z in zip(sign.parameters.values(), param_kinds)]
 
     def __init__(self, param_name: str, param_kind: inspect._ParameterKind, param_def, param_anno):
         self._parameter_name: str = param_name # this name use for pass to the function
@@ -115,7 +129,9 @@ class ArgumentAdapter:
         annotation = self._parameter_annotation
         default = self._parameter_default
 
-        if kind is inspect.Parameter.KEYWORD_ONLY:
+        if kind is inspect.Parameter.POSITIONAL_ONLY:
+            self._builder.ptype = ClickParameterBuilder.TYPE_ARGUMENT
+        elif kind is inspect.Parameter.KEYWORD_ONLY:
             self._builder.ptype = ClickParameterBuilder.TYPE_OPTION
         elif annotation is flag:
             self._builder.ptype = ClickParameterBuilder.TYPE_OPTION
@@ -132,7 +148,8 @@ class ArgumentAdapter:
         self._init_click_type()
 
         if default is _UNSET:
-            self._builder.attrs['required'] = True
+            if kind is not inspect.Parameter.VAR_POSITIONAL:
+                self._builder.attrs['required'] = True
         else:
             self._builder.set_default(default)
 
@@ -192,12 +209,14 @@ class ArgumentAdapter:
         else:
             val = kwargs.pop(self._parameter_key)
 
-        if self._parameter_kind is inspect.Parameter.POSITIONAL_OR_KEYWORD:
-            to_args.append(val)
+        assert self._parameter_kind is not inspect.Parameter.VAR_KEYWORD
+
+        if self._parameter_kind is inspect.Parameter.KEYWORD_ONLY:
+            to_kwargs[self._parameter_name] = val
         elif self._parameter_kind is inspect.Parameter.VAR_POSITIONAL:
             to_args.extend(val)
         else:
-            to_kwargs[self._parameter_name] = val
+            to_args.append(val)
 
 
 class CallableAdapter:
