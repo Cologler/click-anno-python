@@ -35,6 +35,22 @@ def attrs(**kwargs):
     return wrapper
 
 
+class _Argument(click.Argument):
+    __slots__ = ('show_default')
+
+    def __init__(self, *args, **kwargs):
+        self.show_default = kwargs.pop('show_default', False)
+        super().__init__(*args, **kwargs)
+
+    def make_metavar(self):
+        var: str = super().make_metavar()
+        if self.show_default:
+            if var.startswith('[') and var.endswith(']'):
+                var = var[1:-1]
+                var = '[%s=%s]' % (var, self.default)
+        return var
+
+
 class ClickParameterBuilder:
     __slots__ = ('ptype', 'decls', 'attrs')
 
@@ -49,8 +65,13 @@ class ClickParameterBuilder:
 
     def get_decorator(self):
         assert self.ptype in self.TYPES
+
+        attrs = self.attrs.copy()
+        decls = self.decls.copy()
+        if self.ptype == self.TYPE_ARGUMENT:
+            attrs['cls'] = _Argument
         decorator =  getattr(click, self.ptype)
-        return decorator(*self.decls, **self.attrs)
+        return decorator(*decls, **attrs)
 
     def set_nargs(self, value: int):
         '''set nargs, -1 for var len.'''
@@ -75,9 +96,9 @@ class ClickParameterBuilder:
 
         self.attrs['default'] = value
 
-        if self.ptype == self.TYPE_OPTION:
-            # only work on option
-            self.attrs['show_default'] = True
+        # show_default only work on option
+        # so I make a subclass for argument
+        self.attrs['show_default'] = True
 
     def set_name(self, name):
         assert self.ptype is not None
@@ -124,7 +145,13 @@ class ArgumentAdapter:
             index -= 1
             param_kinds[index] = inspect.Parameter.POSITIONAL_ONLY
 
-        return [cls.from_parameter(*z) for z in zip(sign.parameters.values(), param_kinds)]
+        adapters = []
+        for p, k in zip(sign.parameters.values(), param_kinds):
+            if p.name == '_': # ignore param which named `_`
+                continue
+            adapters.append(cls.from_parameter(p, k))
+
+        return adapters
 
     def __init__(self, param_name: str, param_kind: inspect._ParameterKind, param_def, param_anno):
         if param_kind is inspect.Parameter.VAR_KEYWORD:

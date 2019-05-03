@@ -81,7 +81,7 @@ def test_all_types_args():
     builder: ClickParameterBuilder = params[1]._builder
     assert builder.ptype == ClickParameterBuilder.TYPE_ARGUMENT
     assert builder.decls == ['b']
-    assert builder.attrs == {'type': int, 'default': 1}
+    assert builder.attrs == {'type': int, 'default': 1, 'show_default': True}
 
     builder: ClickParameterBuilder = params[2]._builder
     assert builder.ptype == ClickParameterBuilder.TYPE_ARGUMENT

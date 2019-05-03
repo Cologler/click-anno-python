@@ -230,3 +230,23 @@ class App:
 
     alias = sync
 ```
+
+### show default in argument
+
+by default, `click.argument` did not accept `show_default` option.
+
+click_anno was modify this.
+
+``` py
+@command
+def func(a=10, *_):
+    pass
+
+# with --help
+# Usage: func [OPTIONS] [A=10]
+# ...
+```
+
+**click_anno will ignore all args named `_`**
+
+In the example, `*_` did convert `a` from `click.option` to `click.argument` only.

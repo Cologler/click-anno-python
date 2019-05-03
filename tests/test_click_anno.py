@@ -10,7 +10,7 @@ from typing import Tuple
 import click
 from click.testing import CliRunner
 
-from click_anno import click_app
+from click_anno import click_app, command
 
 def test_group():
     @click_app
@@ -96,4 +96,15 @@ def test_click_app_allow_inherit():
 
     result = CliRunner().invoke(App, ['age'])
     assert result.output == "age\n"
+    assert result.exit_code == 0
+
+def test_default_in_argument():
+    # by default, click does not allow show_default in click.argument
+    # click_anno was overwrite it
+    @command
+    def func(a=10, *_):
+        pass
+
+    result = CliRunner().invoke(func, ['--help'])
+    assert result.output.splitlines()[0] == "Usage: func [OPTIONS] [A=10]"
     assert result.exit_code == 0
