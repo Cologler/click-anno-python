@@ -230,3 +230,35 @@ class App:
 
     alias = sync
 ```
+
+### show default in argument
+
+by default, `click.argument` did not accept `show_default` option.
+
+click_anno was modify this.
+
+``` py
+@command
+def func(a=10, *_):
+    pass
+
+# with --help
+# Usage: func [OPTIONS] [A=10]
+# ...
+```
+
+## Arguments vs Options
+
+click only has two kinds of parameters:
+
+* Options
+* Arguments - work similarly to options but are positional.
+
+By default in python, arguments like `*args` and options like `**kwargs`.
+
+In example `func(a, b=1, *args, d, e=2)`, `a` `b` `args` are arguments, `d` `e` are options.
+
+If you don't want the args `*args`, rename it to `*_`.
+**click_anno will ignore all args named `_`**
+
+In example `func(a, b=1)`, `*args` did not exists. so `a` is argument, `b` is option.

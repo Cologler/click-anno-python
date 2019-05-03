@@ -35,38 +35,142 @@ def attrs(**kwargs):
     return wrapper
 
 
+class _Argument(click.Argument):
+    __slots__ = ('show_default')
+
+    def __init__(self, *args, **kwargs):
+        self.show_default = kwargs.pop('show_default', False)
+        super().__init__(*args, **kwargs)
+
+    def make_metavar(self):
+        var: str = super().make_metavar()
+        if self.show_default:
+            if var.startswith('[') and var.endswith(']'):
+                var = var[1:-1]
+                var = '[%s=%s]' % (var, self.default)
+        return var
+
+
+class ClickParameterBuilder:
+    __slots__ = ('ptype', 'decls', 'attrs')
+
+    TYPE_ARGUMENT = 'argument'
+    TYPE_OPTION = 'option'
+    TYPES = (TYPE_ARGUMENT, TYPE_OPTION)
+
+    def __init__(self):
+        self.ptype: str = None # click parameter type
+        self.decls = []
+        self.attrs = {}
+
+    def get_decorator(self):
+        assert self.ptype in self.TYPES
+
+        attrs = self.attrs.copy()
+        decls = self.decls.copy()
+        if self.ptype == self.TYPE_ARGUMENT:
+            attrs['cls'] = _Argument
+        decorator =  getattr(click, self.ptype)
+        return decorator(*decls, **attrs)
+
+    def set_nargs(self, value: int):
+        '''set nargs, -1 for var len.'''
+        assert self.ptype is not None
+        try:
+            assert self.attrs['nargs'] == value
+        except KeyError:
+            self.attrs['nargs'] = value
+
+    def set_flag(self):
+        self.attrs['is_flag'] = True
+
+    def set_default(self, value):
+        assert self.ptype is not None
+
+        if self.attrs.get('is_flag', False):
+            # click is unable to parse flag as bool
+            # so keep it has no type.
+            pass
+        elif value is not None:
+            self.attrs.setdefault('type', type(value))
+
+        self.attrs['default'] = value
+
+        # show_default only work on option
+        # so I make a subclass for argument
+        self.attrs['show_default'] = True
+
+    def set_name(self, name):
+        assert self.ptype is not None
+
+        cname = name.replace('_', '-')
+
+        if self.ptype == self.TYPE_OPTION:
+            if self.attrs.get('type') is bool:
+                # if not del `type`, will raise:
+                # TypeError: Got secondary option for non boolean flag.
+                del self.attrs['type']
+                self.decls.append(f'--{cname}/--no-{cname}')
+            else:
+                self.decls.append('--' + cname)
+
+        self.decls.append(name)
+
+
 _UNSET = object()
 
 
 class ArgumentAdapter:
     @classmethod
-    def from_parameter(cls, param: inspect.Parameter):
+    def from_parameter(cls, param: inspect.Parameter, kind=None):
         default = _UNSET if param.default is inspect.Parameter.empty else param.default
         annotation = _UNSET if param.annotation is inspect.Parameter.empty else param.annotation
-        adapter = cls(param.name, param.kind, default, annotation)
+        if kind is None:
+            kind = param.kind
+        adapter = cls(param.name, kind, default, annotation)
         return adapter
 
     @classmethod
     def from_callable(cls, func) -> list:
         sign = inspect.signature(func)
-        return [cls.from_parameter(param) for param in sign.parameters.values()]
+
+        # if contains var pos args
+        # all before it should be TYPE_ARGUMENT
+        param_kinds = [z.kind for z in sign.parameters.values()]
+        try:
+            index = param_kinds.index(inspect.Parameter.VAR_POSITIONAL)
+        except ValueError:
+            index = 0
+        while index:
+            index -= 1
+            param_kinds[index] = inspect.Parameter.POSITIONAL_ONLY
+
+        adapters = []
+        for p, k in zip(sign.parameters.values(), param_kinds):
+            if p.name == '_': # ignore param which named `_`
+                continue
+            adapters.append(cls.from_parameter(p, k))
+
+        return adapters
 
     def __init__(self, param_name: str, param_kind: inspect._ParameterKind, param_def, param_anno):
+        if param_kind is inspect.Parameter.VAR_KEYWORD:
+            raise RuntimeError('click does not support dynamic options.')
+
         self._parameter_name: str = param_name # this name use for pass to the function
         self._parameter_key: str = param_name.strip('_') # this key use for get value from click args
         self._parameter_annotation = param_anno
         self._parameter_kind: inspect._ParameterKind = param_kind
         self._parameter_default = param_def
 
-        self._click_decorator_name: str = None
-        self._click_decorator_decls: list = []
-        self._click_decorator_attrs: dict = {}
         self._injector: Injector = None
+        self._builder: ClickParameterBuilder = None
 
         anno = TYPE_INJECTOR_MAP.get(self._parameter_annotation, self._parameter_annotation)
         if isinstance(anno, Injector):
             self._injector = anno
         else:
+            self._builder = ClickParameterBuilder()
             self._init_click_attrs()
 
     def _init_click_attrs(self):
@@ -74,46 +178,29 @@ class ArgumentAdapter:
         annotation = self._parameter_annotation
         default = self._parameter_default
 
-        self._click_decorator_decls: list = []
-        self._click_decorator_attrs: dict = {}
-
-        if kind is inspect.Parameter.POSITIONAL_OR_KEYWORD:
-            if annotation is not _UNSET:
-                if annotation is tuple:
-                    self._click_decorator_attrs.setdefault('nargs', -1)
-
-        elif kind is inspect.Parameter.VAR_POSITIONAL:
-            self._click_decorator_attrs.setdefault('nargs', -1)
-
+        if kind is inspect.Parameter.POSITIONAL_ONLY:
+            self._builder.ptype = ClickParameterBuilder.TYPE_ARGUMENT
         elif kind is inspect.Parameter.KEYWORD_ONLY:
-            self._click_decorator_name = 'option'
-            self._click_decorator_attrs['required'] = True
-
-        elif kind is inspect.Parameter.VAR_KEYWORD:
-            raise RuntimeError('does not support var keyword parameters.')
-
+            self._builder.ptype = ClickParameterBuilder.TYPE_OPTION
+        elif annotation in (flag, bool):
+            self._builder.ptype = ClickParameterBuilder.TYPE_OPTION
+        elif default is _UNSET:
+            self._builder.ptype = ClickParameterBuilder.TYPE_ARGUMENT
         else:
-            raise NotImplementedError
+            self._builder.ptype = ClickParameterBuilder.TYPE_OPTION
+
+        if kind is inspect.Parameter.VAR_POSITIONAL:
+            self._builder.set_nargs(-1)
 
         self._init_click_type()
 
-        if self._click_decorator_name is None:
-            if default is _UNSET:
-                self._click_decorator_name = 'argument'
-            else:
-                self._click_decorator_name = 'option'
+        if default is _UNSET:
+            if kind is not inspect.Parameter.VAR_POSITIONAL:
+                self._builder.attrs['required'] = True
+        else:
+            self._builder.set_default(default)
 
-        if default is not _UNSET:
-            if default is not None:
-                self._click_decorator_attrs.setdefault('type', type(default))
-            self._click_decorator_attrs['default'] = default
-            self._click_decorator_attrs['show_default'] = True
-
-        if self._click_decorator_name == 'option':
-            self._click_decorator_decls.append('--' + self._parameter_key.replace('_', '-'))
-        self._click_decorator_decls.append(self._parameter_key)
-
-        assert self._click_decorator_name in ('argument', 'option')
+        self._builder.set_name(self._parameter_key)
 
     def _init_click_type(self):
         kind = self._parameter_kind
@@ -123,45 +210,41 @@ class ArgumentAdapter:
             return
 
         elif annotation is tuple:
-            self._click_decorator_attrs.setdefault('nargs', -1)
-            return
+            return self._builder.set_nargs(-1)
 
         elif annotation is flag:
-            self._click_decorator_name = 'option'
-            self._click_decorator_attrs['is_flag'] = True
-            return
+            return self._builder.set_flag()
 
         elif isinstance(annotation, type):
             if issubclass(annotation, Enum):
-                self._click_decorator_attrs['type'] = _EnumChoice(annotation)
+                self._builder.attrs['type'] = _EnumChoice(annotation)
 
         elif isinstance(annotation, typing._GenericAlias):
             # for `Tuple[?]`
             if annotation.__origin__ is tuple:
                 args = annotation.__args__
                 if kind is inspect.Parameter.VAR_POSITIONAL:
+                    assert self._builder.attrs['nargs'] == -1
                     if len(args) == 2 and args[1] is Ellipsis:
-                        self._click_decorator_attrs['type'] = args[0]
+                        self._builder.attrs['type'] = args[0]
                     else:
                         raise ValueError(\
-                            f'annotation of parameter {self._parameter_name} must be tuple or typing.Tuple[?, ...]')
+                            f'anno of param {self._parameter_name} must be tuple or typing.Tuple[?, ...]')
                 else:
                     if any(x is not args[0] for x in args):
                         raise ValueError(\
-                            f'annotation of parameter {self._parameter_name} must be same types')
+                            f'anno of param {self._parameter_name} must be same types')
                     else:
-                        self._click_decorator_attrs.setdefault('nargs', len(args))
-                        self._click_decorator_attrs['type'] = args[0]
+                        self._builder.set_nargs(len(args))
+                        self._builder.attrs['type'] = args[0]
             else:
                 raise ValueError('generic type must be typing.Tuple')
 
-        self._click_decorator_attrs.setdefault('type', annotation)
-
+        self._builder.attrs.setdefault('type', annotation)
 
     def get_click_decorator(self):
-        if self._click_decorator_name:
-            decorator =  getattr(click, self._click_decorator_name)
-            return decorator(*self._click_decorator_decls, **self._click_decorator_attrs)
+        if self._builder:
+            return self._builder.get_decorator()
 
     def convert(self, args, kwargs, to_args: list, to_kwargs: dict):
         assert not args
@@ -171,12 +254,14 @@ class ArgumentAdapter:
         else:
             val = kwargs.pop(self._parameter_key)
 
-        if self._parameter_kind is inspect.Parameter.POSITIONAL_OR_KEYWORD:
-            to_args.append(val)
+        assert self._parameter_kind is not inspect.Parameter.VAR_KEYWORD
+
+        if self._parameter_kind is inspect.Parameter.KEYWORD_ONLY:
+            to_kwargs[self._parameter_name] = val
         elif self._parameter_kind is inspect.Parameter.VAR_POSITIONAL:
             to_args.extend(val)
         else:
-            to_kwargs[self._parameter_name] = val
+            to_args.append(val)
 
 
 class CallableAdapter:
