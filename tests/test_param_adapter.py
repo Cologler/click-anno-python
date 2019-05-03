@@ -67,6 +67,22 @@ def test_var_kwargs():
     with raises(RuntimeError, match='click does not support dynamic'):
         ArgumentAdapter.from_callable(func)
 
+def test_all_types_args_without_varpos():
+    def func(a, b=1):
+        pass
+
+    params = ArgumentAdapter.from_callable(func)
+
+    builder: ClickParameterBuilder = params[0]._builder
+    assert builder.ptype == ClickParameterBuilder.TYPE_ARGUMENT
+    assert builder.decls == ['a']
+    assert builder.attrs == {'required': True}
+
+    builder: ClickParameterBuilder = params[1]._builder
+    assert builder.ptype == ClickParameterBuilder.TYPE_OPTION
+    assert builder.decls == ['--b', 'b']
+    assert builder.attrs == {'type': int, 'default': 1, 'show_default': True}
+
 def test_all_types_args():
     def func(a, b=1, *c, d, e=2):
         pass

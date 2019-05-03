@@ -247,6 +247,18 @@ def func(a=10, *_):
 # ...
 ```
 
+## Arguments vs Options
+
+click only has two kinds of parameters:
+
+* Options
+* Arguments - work similarly to options but are positional.
+
+By default in python, arguments like `*args` and options like `**kwargs`.
+
+In example `func(a, b=1, *args, d, e=2)`, `a` `b` `args` are arguments, `d` `e` are options.
+
+If you don't want the args `*args`, rename it to `*_`.
 **click_anno will ignore all args named `_`**
 
-In the example, `*_` did convert `a` from `click.option` to `click.argument` only.
+In example `func(a, b=1)`, `*args` did not exists. so `a` is argument, `b` is option.
