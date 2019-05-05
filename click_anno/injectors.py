@@ -9,7 +9,7 @@ import abc
 
 import click
 
-class Injector:
+class Injector(abc.ABC):
     @abc.abstractmethod
     def get_value(self):
         raise NotImplementedError
@@ -53,3 +53,29 @@ def ensure(object_type: type):
 TYPE_INJECTOR_MAP = {
     click.Context: ClickContextInjector()
 }
+
+
+class Injectable(abc.ABC):
+    @classmethod
+    @abc.abstractmethod
+    def __inject__(cls):
+        raise NotImplementedError
+
+
+class _InjectableInjector(Injector):
+    def __init__(self, injectable_type):
+        self._injectable_type = injectable_type
+
+    def get_value(self):
+        return self._injectable_type.__inject__()
+
+
+def get_injector(annotation: type):
+    if isinstance(annotation, Injector):
+        return annotation
+
+    if annotation is click.Context:
+        return ClickContextInjector()
+
+    if isinstance(annotation, Injectable):
+        return _InjectableInjector(annotation)

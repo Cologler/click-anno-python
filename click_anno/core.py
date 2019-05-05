@@ -11,7 +11,7 @@ import functools
 
 import click
 
-from .injectors import Injector, find, ensure, TYPE_INJECTOR_MAP
+from .injectors import Injector, get_injector
 from .snake_case import convert as sc_convert
 from .types import flag, Enum, _EnumChoice
 
@@ -164,13 +164,10 @@ class ArgumentAdapter:
         self._parameter_kind: inspect._ParameterKind = param_kind
         self._parameter_default = param_def
 
-        self._injector: Injector = None
+        self._injector: Injector = get_injector(self._parameter_annotation)
         self._builder: ClickParameterBuilder = None
 
-        anno = TYPE_INJECTOR_MAP.get(self._parameter_annotation, self._parameter_annotation)
-        if isinstance(anno, Injector):
-            self._injector = anno
-        else:
+        if not self._injector:
             self._builder = ClickParameterBuilder()
             self._init_click_attrs()
 
