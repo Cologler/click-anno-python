@@ -100,9 +100,10 @@ class ClickParameterBuilder:
         # so I make a subclass for argument
         self.attrs['show_default'] = True
 
-    def set_name(self, name):
+    def set_name(self, name: str):
         assert self.ptype is not None
 
+        name = name.strip('_')
         cname = name.replace('_', '-')
 
         if self.ptype == self.TYPE_OPTION:
