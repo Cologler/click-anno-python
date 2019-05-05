@@ -50,11 +50,6 @@ def ensure(object_type: type):
     return EnsureObjectInjector(object_type)
 
 
-TYPE_INJECTOR_MAP = {
-    click.Context: ClickContextInjector()
-}
-
-
 class Injectable(abc.ABC):
     @classmethod
     @abc.abstractmethod
@@ -77,5 +72,6 @@ def get_injector(annotation: type):
     if annotation is click.Context:
         return ClickContextInjector()
 
-    if isinstance(annotation, Injectable):
-        return _InjectableInjector(annotation)
+    if isinstance(annotation, type):
+        if issubclass(annotation, Injectable):
+            return _InjectableInjector(annotation)

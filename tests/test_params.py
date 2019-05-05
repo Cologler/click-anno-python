@@ -101,7 +101,7 @@ def test_var_args_generic():
     assert result.exit_code == 0
     assert result.output == "args=(123, 456)\n"
 
-def test_injected_args():
+def test_inject_context():
     @command
     def func(a, ctx: click.Context):
         assert isinstance(ctx, click.Context)
@@ -110,6 +110,23 @@ def test_injected_args():
     result = CliRunner().invoke(func, ['123'])
     assert result.exit_code == 0
     assert result.output == "args=123\n"
+
+def test_inject_injectable():
+    from click_anno.injectors import Injectable
+
+    class A(Injectable):
+        @classmethod
+        def __inject__(cls):
+            return A()
+
+    @command
+    def func(a: A):
+        assert isinstance(a, A)
+        click.echo(f'{type(a).__name__}')
+
+    result = CliRunner().invoke(func, [])
+    assert result.output == "A\n"
+    assert result.exit_code == 0
 
 def test_all_type_args():
     @command
