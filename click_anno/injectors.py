@@ -12,7 +12,7 @@ import click
 class Injector:
     @abc.abstractmethod
     def get_value(self):
-        return click.get_current_context()
+        raise NotImplementedError
 
 
 class ClickContextInjector(Injector):
