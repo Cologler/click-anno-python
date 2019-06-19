@@ -57,22 +57,6 @@ def test_multi_level_group():
     assert result.output == "2, 3\n"
     assert result.exit_code == 0
 
-def test_alias():
-    @click_app
-    class App:
-        def name(self, x):
-            click.echo(x)
-
-        alias = name
-
-    result = CliRunner().invoke(App, ['name', 'val'])
-    assert result.output == "val\n"
-    assert result.exit_code == 0
-
-    result = CliRunner().invoke(App, ['alias', 'val'])
-    assert result.output == "val\n"
-    assert result.exit_code == 0
-
 def test_click_app_not_inherit():
     class Base:
         def age(self):
