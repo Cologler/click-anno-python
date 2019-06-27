@@ -329,11 +329,14 @@ class GroupBuilderOptions:
 
 
 class GroupBuilder:
+    KEY_ALIAS_LIST = object()
+    KEY_ALIAS_OF = object()
 
     def __init__(self, group, options: GroupBuilderOptions):
         self.group = group
-        self.command_name_map = {}
         self.options = options
+        self.command_attrs_map = {}
+        self.command2_attrs_map = {}
 
     def add_group(self, func, attrs):
         return self.group.group(**attrs)(func)
@@ -341,30 +344,51 @@ class GroupBuilder:
     def add_command(self, func, attrs):
         return self.group.command(**attrs)(func)
 
-    def prepare_attrs(self, cmd, *, name, format_func):
-        attrs: dict = getattr(cmd, _KEY_ATTRS, {}).copy()
-        cmd_name = format_func(cmd, name)
-        if cmd in self.command_name_map:
-            # this is alias
-            def_cmd_name = self.command_name_map[cmd]
+    def prepare_attrs(self, name, command, format_func):
+        formated_command_name = format_func(command, name)
+
+        if command in self.command_attrs_map: # this is alias
+            origin_attrs = self.command_attrs_map[command]
+            attrs = origin_attrs.copy()
             # alias should not use name from `attrs`, so we overwrite it.
-            attrs['name'] = cmd_name
-            attrs['help'] = f'alias of command ({def_cmd_name})'
+            attrs['name'] = formated_command_name
+            # hide alias
+            attrs['hidden'] = True
+            origin_attrs.setdefault(self.KEY_ALIAS_LIST, []).append(formated_command_name)
+            attrs[self.KEY_ALIAS_OF] = origin_attrs['name']
+
         else:
-            attrs.setdefault('name', cmd_name)
-        self.command_name_map[cmd] = attrs['name']
-        return attrs
+            attrs: dict = getattr(command, _KEY_ATTRS, {}).copy()
+            self.command_attrs_map[command] = attrs
+            attrs.setdefault('name', formated_command_name)
 
-    def make_command(self, cmd, *, name):
-        attrs = self.prepare_attrs(cmd, name=name, format_func=self.options.command_name_format)
+        self.command2_attrs_map[(command, name)] = attrs
 
-        adapter = CallableAdapter(create_method_wrapper(cmd))
-        adapter.args_adapters.extend(ArgumentAdapter.from_callable(cmd))
+    def get_attrs(self, command, name):
+        return self.command2_attrs_map[(command, name)]
+
+    def make_command(self, command, *, name):
+        attrs = self.get_attrs(command, name)
+
+        alias_list = attrs.pop(self.KEY_ALIAS_LIST, None)
+        if alias_list:
+            alias_repr = ', '.join(alias_list)
+            attrs['help'] = str(command.__doc__) + '\n' + f' (alias: {alias_repr})'
+
+        alias_of = attrs.pop(self.KEY_ALIAS_OF, None)
+        if alias_of:
+            attrs['help'] = str(command.__doc__) + '\n' + f' (alias of: {alias_of})'
+
+        adapter = CallableAdapter(create_method_wrapper(command))
+        adapter.args_adapters.extend(ArgumentAdapter.from_callable(command))
         adapter.args_adapters.pop(0) # remove arg `self`
         self.add_command(adapter.get_wrapped_func(), attrs)
 
     def make_group(self, cls, *, name):
-        attrs = self.prepare_attrs(cls, name=name, format_func=self.options.group_name_format)
+        self.prepare_attrs(name, cls, self.options.group_name_format)
+        attrs = self.get_attrs(cls, name)
+        attrs.pop(self.KEY_ALIAS_LIST, None)
+        attrs.pop(self.KEY_ALIAS_OF, None)
 
         func = create_init_wrapper(cls)
         adapter = CallableAdapter(func)
@@ -378,11 +402,19 @@ class GroupBuilder:
         else:
             iter_subcommands = self.iter_subcommands_not_inherit(cls)
 
-        for name, sub_cmd in iter_subcommands:
-            if isinstance(sub_cmd, type):
-                group_builder.make_group(sub_cmd, name=name)
-            elif callable(sub_cmd):
-                group_builder.make_command(sub_cmd, name=name)
+        subcommands_list = list(iter_subcommands)
+        for name, subcommand in subcommands_list:
+            if isinstance(subcommand, type):
+                #group_builder.prepare_attrs(name, subcommand, self.options.group_name_format)
+                pass
+            else:
+                group_builder.prepare_attrs(name, subcommand, self.options.command_name_format)
+
+        for name, subcommand in subcommands_list:
+            if isinstance(subcommand, type):
+                group_builder.make_group(subcommand, name=name)
+            elif callable(subcommand):
+                group_builder.make_command(subcommand, name=name)
 
         return group
 

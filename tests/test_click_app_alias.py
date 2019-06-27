@@ -30,16 +30,33 @@ def test_alias_help():
     @click_app
     class App:
         def name(self, x):
-            'abc'
+            'abc\ncde'
             pass
 
-        alias = name
+        first_name = name
 
     result = CliRunner().invoke(App, ['--help'])
-    lines = result.output.splitlines()[-3:]
+    lines = result.output.splitlines()[-2:]
     assert lines == [
         'Commands:',
-        '  alias  alias of command (name)',
-        '  name   abc'
+        '  name  abc cde (alias: first-name)'
+    ]
+    assert result.exit_code == 0
+
+    result = CliRunner().invoke(App, ['name', '--help'])
+    lines = result.output.splitlines()[1:4]
+    assert lines == [
+        '',
+        '  abc cde  (alias: first-name)',
+        ''
+    ]
+    assert result.exit_code == 0
+
+    result = CliRunner().invoke(App, ['first-name', '--help'])
+    lines = result.output.splitlines()[1:4]
+    assert lines == [
+        '',
+        '  abc cde  (alias of: name)',
+        ''
     ]
     assert result.exit_code == 0
