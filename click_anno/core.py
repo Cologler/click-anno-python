@@ -8,6 +8,7 @@
 import inspect
 import typing
 import functools
+import itertools
 
 import click
 
@@ -328,105 +329,36 @@ class GroupBuilderOptions:
         return name.lower().replace('_', '-')
 
 
-class GroupBuilder:
-    KEY_ALIAS_LIST = object()
-    KEY_ALIAS_OF = object()
+def _iter_subcommands_not_inherit(cls):
+    for name, sub_cmd in vars(cls).items():
+        if name[:1] != '_':
+            yield name, sub_cmd
 
-    def __init__(self, group, options: GroupBuilderOptions):
-        self.group = group
+def _iter_subcommands_allow_inherit(cls):
+    for name in dir(cls):
+        if name[:1] != '_':
+            yield name, getattr(cls, name)
+
+class _SubCommandBuilder:
+    def __init__(self, is_group: bool, command, name: str, options: GroupBuilderOptions):
+        self.is_group = is_group
+        self.command = command
+        self.name = name
+        self.attrs: dict = getattr(command, _KEY_ATTRS, {}).copy()
         self.options = options
-        self.command_attrs_map = {}
-        self.command2_attrs_map = {}
+        self.attrs.setdefault('help', str(command.__doc__))
 
-    def add_group(self, func, attrs):
-        return self.group.group(**attrs)(func)
-
-    def add_command(self, func, attrs):
-        return self.group.command(**attrs)(func)
-
-    def prepare_attrs(self, name, command, format_func):
-        formated_command_name = format_func(command, name)
-
-        if command in self.command_attrs_map: # this is alias
-            origin_attrs = self.command_attrs_map[command]
-            attrs = origin_attrs.copy()
+    def update_name(self, is_default):
+        if self.is_group:
+            format_func = self.options.group_name_format
+        else:
+            format_func = self.options.command_name_format
+        formated_name = format_func(self.command, self.name)
+        if is_default:
+            self.attrs.setdefault('name', formated_name)
+        else:
             # alias should not use name from `attrs`, so we overwrite it.
-            attrs['name'] = formated_command_name
-            # hide alias
-            attrs['hidden'] = True
-            origin_attrs.setdefault(self.KEY_ALIAS_LIST, []).append(formated_command_name)
-            attrs[self.KEY_ALIAS_OF] = origin_attrs['name']
-
-        else:
-            attrs: dict = getattr(command, _KEY_ATTRS, {}).copy()
-            self.command_attrs_map[command] = attrs
-            attrs.setdefault('name', formated_command_name)
-
-        self.command2_attrs_map[(command, name)] = attrs
-
-    def get_attrs(self, command, name):
-        return self.command2_attrs_map[(command, name)]
-
-    def make_command(self, command, *, name):
-        attrs = self.get_attrs(command, name)
-
-        alias_list = attrs.pop(self.KEY_ALIAS_LIST, None)
-        if alias_list:
-            alias_repr = ', '.join(alias_list)
-            attrs['help'] = str(command.__doc__) + '\n' + f' (alias: {alias_repr})'
-
-        alias_of = attrs.pop(self.KEY_ALIAS_OF, None)
-        if alias_of:
-            attrs['help'] = str(command.__doc__) + '\n' + f' (alias of: {alias_of})'
-
-        adapter = CallableAdapter(create_method_wrapper(command))
-        adapter.args_adapters.extend(ArgumentAdapter.from_callable(command))
-        adapter.args_adapters.pop(0) # remove arg `self`
-        self.add_command(adapter.get_wrapped_func(), attrs)
-
-    def make_group(self, cls, *, name):
-        self.prepare_attrs(name, cls, self.options.group_name_format)
-        attrs = self.get_attrs(cls, name)
-        attrs.pop(self.KEY_ALIAS_LIST, None)
-        attrs.pop(self.KEY_ALIAS_OF, None)
-
-        func = create_init_wrapper(cls)
-        adapter = CallableAdapter(func)
-        adapter.args_adapters.extend(ArgumentAdapter.from_callable(cls))
-        group = self.add_group(adapter.get_wrapped_func(), attrs)
-
-        group_builder = GroupBuilder(group, self.options)
-
-        if self.options.allow_inherit:
-            iter_subcommands = self.iter_subcommands_allow_inherit(cls)
-        else:
-            iter_subcommands = self.iter_subcommands_not_inherit(cls)
-
-        subcommands_list = list(iter_subcommands)
-        for name, subcommand in subcommands_list:
-            if isinstance(subcommand, type):
-                #group_builder.prepare_attrs(name, subcommand, self.options.group_name_format)
-                pass
-            else:
-                group_builder.prepare_attrs(name, subcommand, self.options.command_name_format)
-
-        for name, subcommand in subcommands_list:
-            if isinstance(subcommand, type):
-                group_builder.make_group(subcommand, name=name)
-            elif callable(subcommand):
-                group_builder.make_command(subcommand, name=name)
-
-        return group
-
-    def iter_subcommands_not_inherit(self, cls):
-        for name, sub_cmd in vars(cls).items():
-            if name[:1] != '_':
-                yield name, sub_cmd
-
-    def iter_subcommands_allow_inherit(self, cls):
-        for name in dir(cls):
-            if name[:1] != '_':
-                yield name, getattr(cls, name)
+            self.attrs['name'] = formated_name
 
 
 def click_app(cls: type = None, **kwargs) -> click.Group:
@@ -435,11 +367,63 @@ def click_app(cls: type = None, **kwargs) -> click.Group:
 
     use `kwargs` to override members of `GroupBuilderOptions`.
     '''
+    options = GroupBuilderOptions()
+    vars(options).update(kwargs)
 
-    def warpper(cls):
-        options = GroupBuilderOptions()
-        vars(options).update(kwargs)
-        group_builder = GroupBuilder(click, options)
-        return group_builder.make_group(cls, name=cls.__name__)
+    def make_group(cls: type, group: click.Group, attrs: dict):
+        'make group from a class'
+        adapter = CallableAdapter(create_init_wrapper(cls))
+        adapter.args_adapters.extend(ArgumentAdapter.from_callable(cls))
+        group = group.group(**attrs)(adapter.get_wrapped_func())
+
+        if options.allow_inherit:
+            iter_subcommands = _iter_subcommands_allow_inherit(cls)
+        else:
+            iter_subcommands = _iter_subcommands_not_inherit(cls)
+
+        # list subcommands
+        subcmdinfo_map = {}
+        for name, subcommand in iter_subcommands:
+            if callable(subcommand):
+                subcmdinfo = _SubCommandBuilder(
+                    is_group=isinstance(subcommand, type),
+                    command=subcommand,
+                    name=name,
+                    options=options
+                )
+                subcmdinfo_map.setdefault(subcommand, []).append(subcmdinfo)
+
+        # prepare subcommands attrs
+        for attrs_info_list in subcmdinfo_map.values():
+            for index, subcmdinfo in enumerate(attrs_info_list):
+                subcmdinfo: _SubCommandBuilder
+                subcmdinfo.update_name(index == 0)
+            names = [z.attrs['name'] for z in attrs_info_list]
+            if len(attrs_info_list) > 1:
+                attrs_info_list[0].attrs['help'] += f'\n (alias: {", ".join(names[1:])})'
+                for subcmdinfo in attrs_info_list[1:]:
+                    subcmdinfo: _SubCommandBuilder
+                    sub_attrs = subcmdinfo.attrs
+                    # hide alias
+                    sub_attrs['hidden'] = True
+                    sub_attrs['help'] += f'\n (alias of: {names[0]})'
+
+        # add subcommands into group
+        for subcmdinfo in itertools.chain(*subcmdinfo_map.values()):
+            subcmdinfo: _SubCommandBuilder
+            if subcmdinfo.is_group:
+                make_group(subcmdinfo.command, group, subcmdinfo.attrs)
+            else:
+                adapter = CallableAdapter(create_method_wrapper(subcmdinfo.command))
+                adapter.args_adapters.extend(ArgumentAdapter.from_callable(subcmdinfo.command))
+                adapter.args_adapters.pop(0) # remove arg `self`
+                group.command(**subcmdinfo.attrs)(adapter.get_wrapped_func())
+
+        return group
+
+    def warpper(cls) -> click.Group:
+        attrs: dict = getattr(cls, _KEY_ATTRS, {}).copy()
+        attrs.setdefault('name', options.group_name_format(cls, cls.__name__))
+        return make_group(cls, click, attrs)
 
     return warpper(cls) if cls else warpper
