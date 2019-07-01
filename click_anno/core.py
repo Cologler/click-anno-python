@@ -36,6 +36,11 @@ def attrs(**kwargs):
     return wrapper
 
 
+def get_attrs(target, clone=True):
+    attrs = getattr(target, _KEY_ATTRS, {})
+    return attrs.copy() if clone else attrs
+
+
 class _Argument(click.Argument):
     __slots__ = ('show_default')
 
@@ -299,7 +304,7 @@ def command(func) -> click.Command:
     build a `function` as a `click.Command`.
     '''
     wrapped_func = CallableAdapter.from_func(func).get_wrapped_func()
-    attrs = getattr(func, _KEY_ATTRS, {})
+    attrs = get_attrs(func, False)
     return click.command(**attrs)(wrapped_func)
 
 
@@ -344,7 +349,7 @@ class _SubCommandBuilder:
         self.is_group = is_group
         self.command = command
         self.name = name
-        self.attrs: dict = getattr(command, _KEY_ATTRS, {}).copy()
+        self.attrs: dict = get_attrs(command)
         self.options = options
         self.attrs.setdefault('help', str(command.__doc__))
 
@@ -422,7 +427,7 @@ def click_app(cls: type = None, **kwargs) -> click.Group:
         return group
 
     def warpper(cls) -> click.Group:
-        attrs: dict = getattr(cls, _KEY_ATTRS, {}).copy()
+        attrs: dict = get_attrs(cls)
         attrs.setdefault('name', options.group_name_format(cls, cls.__name__))
         return make_group(cls, click, attrs)
 
