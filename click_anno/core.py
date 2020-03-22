@@ -14,7 +14,7 @@ import click
 
 from .injectors import Injector, get_injector
 from .snake_case import convert as sc_convert
-from .types import flag, Enum, _EnumChoice
+from .types import flag, Enum, _EnumChoice, get_param_type
 
 _KEY_ATTRS = '__click_anno_attrs'
 
@@ -220,7 +220,10 @@ class ArgumentAdapter:
             return self._builder.set_flag()
 
         elif isinstance(annotation, type):
-            if issubclass(annotation, Enum):
+            param_type = get_param_type(annotation)
+            if param_type is not None:
+                self._builder.attrs['type'] = param_type
+            elif issubclass(annotation, Enum):
                 self._builder.attrs['type'] = _EnumChoice(annotation)
 
         elif isinstance(annotation, typing._GenericAlias):
