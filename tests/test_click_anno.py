@@ -100,7 +100,7 @@ def test_subcommand_name_should_remove_last_underline():
             click.echo('imported')
 
     result = CliRunner().invoke(App, ['--help'])
-    assert result.output.splitlines()[5:8] == ['Commands:', '  import  None']
+    assert result.output.splitlines()[5:8] == ['Commands:', '  import']
 
     result = CliRunner().invoke(App, ['import'])
     assert result.output.splitlines()[0] == "imported"

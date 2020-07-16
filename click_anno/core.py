@@ -368,7 +368,7 @@ class _SubCommandBuilder:
         self.name = name
         self.attrs: dict = get_attrs(command)
         self.options = options
-        self.attrs.setdefault('help', str(command.__doc__))
+        self.attrs.setdefault('help', str(command.__doc__ or ''))
 
     def update_name(self, is_default):
         if self.is_group:
