@@ -330,10 +330,24 @@ def create_method_wrapper(func):
 class GroupBuilderOptions:
     allow_inherit = False
 
-    def group_name_format(self, command, name):
+    @staticmethod
+    def _remove_underline_suffix(name: str):
+        if not name.startswith('_') and name.endswith('_'):
+            # user may want add a sub command `import`,
+            # but `import` is a keyword in python,
+            # so user use `import_` as command.
+            # here we remove the last '_'.
+            # if user still want the '_' suffix, try use `import__`.
+            if len(name) > 1:
+                return name[:-1]
+        return name
+
+    def group_name_format(self, command, name: str):
+        name = self._remove_underline_suffix(name)
         return sc_convert(name).replace('_', '-')
 
-    def command_name_format(self, command, name):
+    def command_name_format(self, command, name: str):
+        name = self._remove_underline_suffix(name)
         return name.lower().replace('_', '-')
 
 

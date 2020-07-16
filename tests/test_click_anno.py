@@ -92,3 +92,16 @@ def test_default_in_argument():
     result = CliRunner().invoke(func, ['--help'])
     assert result.output.splitlines()[0] == "Usage: func [OPTIONS] [A=10]"
     assert result.exit_code == 0
+
+def test_subcommand_name_should_remove_last_underline():
+    @click_app
+    class App:
+        def import_(self):
+            click.echo('imported')
+
+    result = CliRunner().invoke(App, ['--help'])
+    assert result.output.splitlines()[5:8] == ['Commands:', '  import  None']
+
+    result = CliRunner().invoke(App, ['import'])
+    assert result.output.splitlines()[0] == "imported"
+    assert result.exit_code == 0
