@@ -11,6 +11,7 @@ import functools
 import itertools
 
 import click
+import click.utils
 
 from .injectors import Injector, get_injector
 from .snake_case import convert as sc_convert
@@ -435,18 +436,21 @@ def click_app(cls: type = None, **kwargs) -> click.Group:
         # prepare subcommands attrs
         for subcommand in subcmdinfo_map:
             attrs_info_list: typing.List[_SubCommandBuilder] = subcmdinfo_map[subcommand]
-            origin_name = options.find_origin_name(subcommand, [x.formated_name for x in attrs_info_list])
+            names = [x.formated_name for x in attrs_info_list]
+            origin_name = options.find_origin_name(subcommand, names)
+            alias = [x for x in names if x != origin_name]
+
             for subcmdinfo in attrs_info_list:
-                subcmdinfo.update_name(origin_name == subcmdinfo.formated_name)
-            names = [z.attrs['name'] for z in attrs_info_list]
-            if len(attrs_info_list) > 1:
-                attrs_info_list[0].attrs['help'] += f'\n (alias: {", ".join(names[1:])})'
-                for subcmdinfo in attrs_info_list[1:]:
-                    subcmdinfo: _SubCommandBuilder
+                is_origin = origin_name == subcmdinfo.formated_name
+                subcmdinfo.update_name(is_origin)
+                if alias: # has alias
                     sub_attrs = subcmdinfo.attrs
-                    # hide alias
-                    sub_attrs['hidden'] = True
-                    sub_attrs['help'] += f'\n (alias of: {names[0]})'
+                    if is_origin:
+                        sub_attrs['help'] += f'\n (alias: {", ".join(alias)})'
+                    else: # alias
+                        sub_attrs['help'] += f'\n (alias of: {origin_name})'
+                        # hide alias
+                        sub_attrs['hidden'] = True
 
         # add subcommands into group
         for subcmdinfo in itertools.chain(*subcmdinfo_map.values()):
