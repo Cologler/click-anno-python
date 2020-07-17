@@ -101,7 +101,7 @@ def test_var_args_generic():
     assert result.exit_code == 0
     assert result.output == "args=(123, 456)\n"
 
-def test_injected_args():
+def test_inject_context():
     @command
     def func(a, ctx: click.Context):
         assert isinstance(ctx, click.Context)
@@ -119,3 +119,12 @@ def test_all_type_args():
     result = CliRunner().invoke(func, ['A', 'B1', 'B2', '--c', 'C'])
     assert result.exit_code == 0
     assert result.output == "a=A, b=('B1', 'B2'), c=C\n"
+
+def test_kwarg_name():
+    @command
+    def func(*, name_):
+        click.echo('Hello %s!' % name_)
+
+    result = CliRunner().invoke(func, ['--name', 'Peter'])
+    assert result.exit_code == 0
+    assert result.output == 'Hello Peter!\n'

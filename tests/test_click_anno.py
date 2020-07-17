@@ -57,22 +57,6 @@ def test_multi_level_group():
     assert result.output == "2, 3\n"
     assert result.exit_code == 0
 
-def test_alias():
-    @click_app
-    class App:
-        def name(self, x):
-            click.echo(x)
-
-        alias = name
-
-    result = CliRunner().invoke(App, ['name', 'val'])
-    assert result.output == "val\n"
-    assert result.exit_code == 0
-
-    result = CliRunner().invoke(App, ['alias', 'val'])
-    assert result.output == "val\n"
-    assert result.exit_code == 0
-
 def test_click_app_not_inherit():
     class Base:
         def age(self):
@@ -107,4 +91,17 @@ def test_default_in_argument():
 
     result = CliRunner().invoke(func, ['--help'])
     assert result.output.splitlines()[0] == "Usage: func [OPTIONS] [A=10]"
+    assert result.exit_code == 0
+
+def test_subcommand_name_should_remove_last_underline():
+    @click_app
+    class App:
+        def import_(self):
+            click.echo('imported')
+
+    result = CliRunner().invoke(App, ['--help'])
+    assert result.output.splitlines()[5:8] == ['Commands:', '  import']
+
+    result = CliRunner().invoke(App, ['import'])
+    assert result.output.splitlines()[0] == "imported"
     assert result.exit_code == 0

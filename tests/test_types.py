@@ -126,3 +126,25 @@ def test_bool_default_true():
     result = CliRunner().invoke(func, ['--no-is-ok'])
     assert result.exit_code == 0
     assert result.output == 'False\n'
+
+def test_re():
+    from click_anno.types import register_param_type
+
+    class ClassA:
+        value = None
+
+    class ClassAParamType(click.ParamType):
+        def convert(self, value, param, ctx):
+            ca = ClassA()
+            ca.value = value
+            return ca
+
+    register_param_type(ClassA, ClassAParamType())
+
+    @command
+    def func(c: ClassA):
+        click.echo(f'{c.value!r}')
+
+    result = CliRunner().invoke(func, ['abc'])
+    assert result.exit_code == 0
+    assert result.output == "'abc'\n"

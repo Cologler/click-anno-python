@@ -9,5 +9,5 @@ from .core import (
     click_app, command, attrs
 )
 from .injectors import (
-    find, ensure
+    find, ensure, Injectable, inject
 )
