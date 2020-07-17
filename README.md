@@ -262,3 +262,52 @@ If you don't want the args `*args`, rename it to `*_`.
 **click_anno will ignore all args named `_`**
 
 In example `func(a, b=1)`, `*args` did not exists. so `a` is argument, `b` is option.
+
+## Auto Inject Arguments
+
+by default, you can inject `click.Context` by annotation:
+
+``` py
+@command
+def inject_context(a, ctx: click.Context, b): # `ctx` can be any location
+    click.echo(str(type(ctx)))
+```
+
+or impl the `Injectable`:
+
+``` py
+from click_anno import Injectable
+
+class Custom(Injectable):
+    @classmethod
+    def __inject__(cls):
+        return cls()
+
+@command
+def inject_it(obj: Custom):
+    assert isinstance(obj, Custom)
+```
+
+or call `inject` function:
+
+``` py
+from click_anno import inject
+
+class Custom: pass
+
+inject(Custom, lambda: Custom())
+
+@command
+def inject_it(obj: Custom):
+    assert isinstance(obj, Custom)
+```
+
+or if you want to inject from `click.Context.ensure_object()` or `click.Context.find_object()`, you can use:
+
+``` py
+from click_anno import find, ensure
+
+@command
+def inject_it(f: find(A), e: ensure(B)):
+    ...
+```
