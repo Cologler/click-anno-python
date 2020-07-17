@@ -342,13 +342,32 @@ class GroupBuilderOptions:
                 return name[:-1]
         return name
 
-    def group_name_format(self, command, name: str):
+    def group_name_format(self, command, name: str) -> str:
         name = self._remove_underline_suffix(name)
         return sc_convert(name).replace('_', '-')
 
-    def command_name_format(self, command, name: str):
+    def command_name_format(self, command, name: str) -> str:
         name = self._remove_underline_suffix(name)
         return name.lower().replace('_', '-')
+
+    def is_group(self, command) -> bool:
+        return isinstance(command, type)
+
+    def name_format(self, command, name: str) -> str:
+        'format name by `command` and `name`'
+        if self.is_group(command):
+            return self.group_name_format(command, name)
+        else:
+            return self.command_name_format(command, name)
+
+    def find_origin_name(self, command, names: typing.List[str]) -> str:
+        '''
+        find origin name so we known which is alias, which is not.
+
+        NOTE: the item of names is formated name.
+        '''
+        assert names
+        return names[0]
 
 
 def _iter_subcommands_not_inherit(cls):
@@ -369,18 +388,15 @@ class _SubCommandBuilder:
         self.attrs: dict = get_attrs(command)
         self.options = options
         self.attrs.setdefault('help', str(command.__doc__ or ''))
+        self.formated_name = self.options.name_format(self.command, self.name)
 
     def update_name(self, is_default):
-        if self.is_group:
-            format_func = self.options.group_name_format
-        else:
-            format_func = self.options.command_name_format
-        formated_name = format_func(self.command, self.name)
+        'update name to `attrs`'
         if is_default:
-            self.attrs.setdefault('name', formated_name)
+            self.attrs.setdefault('name', self.formated_name)
         else:
             # alias should not use name from `attrs`, so we overwrite it.
-            self.attrs['name'] = formated_name
+            self.attrs['name'] = self.formated_name
 
 
 def click_app(cls: type = None, **kwargs) -> click.Group:
@@ -408,18 +424,20 @@ def click_app(cls: type = None, **kwargs) -> click.Group:
         for name, subcommand in iter_subcommands:
             if callable(subcommand):
                 subcmdinfo = _SubCommandBuilder(
-                    is_group=isinstance(subcommand, type),
+                    is_group=options.is_group(subcommand),
                     command=subcommand,
                     name=name,
                     options=options
                 )
+                # group by callable so we can detect alias
                 subcmdinfo_map.setdefault(subcommand, []).append(subcmdinfo)
 
         # prepare subcommands attrs
-        for attrs_info_list in subcmdinfo_map.values():
-            for index, subcmdinfo in enumerate(attrs_info_list):
-                subcmdinfo: _SubCommandBuilder
-                subcmdinfo.update_name(index == 0)
+        for subcommand in subcmdinfo_map:
+            attrs_info_list: typing.List[_SubCommandBuilder] = subcmdinfo_map[subcommand]
+            origin_name = options.find_origin_name(subcommand, [x.formated_name for x in attrs_info_list])
+            for subcmdinfo in attrs_info_list:
+                subcmdinfo.update_name(origin_name == subcmdinfo.formated_name)
             names = [z.attrs['name'] for z in attrs_info_list]
             if len(attrs_info_list) > 1:
                 attrs_info_list[0].attrs['help'] += f'\n (alias: {", ".join(names[1:])})'
