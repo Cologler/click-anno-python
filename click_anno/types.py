@@ -17,6 +17,8 @@ class _EnumChoice(Choice):
         return super().__init__(names)
 
     def convert(self, value, param, ctx):
+        if isinstance(value, self._enum) and value in self._enum:
+            return value
         enum_value = super().convert(value, param, ctx)
         enum_value = enum_value.replace('-', '_')
         return self._enum.__members__[enum_value]
