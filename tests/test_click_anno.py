@@ -22,7 +22,6 @@ def test_anno():
     assert result.exit_code == 0
     assert result.output == 'foo.txt\n'
 
-
 def test_group():
     @click_app
     class App:
@@ -115,4 +114,15 @@ def test_subcommand_name_should_remove_last_underline():
 
     result = CliRunner().invoke(App, ['import'])
     assert result.output.splitlines()[0] == "imported"
+    assert result.exit_code == 0
+
+def test_user_command():
+    @click_app
+    class App:
+        @click.command()
+        def touch(): # did not have 'self'
+            click.echo('touch')
+
+    result = CliRunner().invoke(App, ['touch'])
+    assert result.output.splitlines()[0] == "touch"
     assert result.exit_code == 0

@@ -358,11 +358,11 @@ class GroupBuilderOptions:
 
         by default, only the sub class is a group.
         '''
-        return isinstance(command, type)
+        return isinstance(command, type) or isinstance(command, click.MultiCommand)
 
-    def name_format(self, command, name: str) -> str:
+    def name_format(self, is_group: bool, command, name: str) -> str:
         'format name by `command` and `name`'
-        if self.is_group(command):
+        if is_group:
             return self.group_name_format(command, name)
         else:
             return self.command_name_format(command, name)
@@ -394,14 +394,13 @@ class GroupBuilderOptions:
 
 
 class _SubCommandBuilder:
-    def __init__(self, is_group: bool, command, name: str, options: GroupBuilderOptions):
+    def __init__(self, is_group: bool, command, name: str, formated_name: str):
         self.is_group = is_group
         self.command = command
         self.name = name
         self.attrs: dict = get_attrs(command)
-        self.options = options
         self.attrs.setdefault('help', str(command.__doc__ or ''))
-        self.formated_name = self.options.name_format(self.command, self.name)
+        self.formated_name = formated_name
 
     def update_name(self, is_default):
         'update name to `attrs`'
@@ -428,17 +427,24 @@ def click_app(cls: type = None, **kwargs) -> click.Group:
         group = (parent or click).group(**attrs)(adapter.get_wrapped_func())
 
         # list subcommands
+        user_commands = []
         cmd_builders_map = {}
         for name, subcommand in list(options.iter_subcommands(cls)):
-            if callable(subcommand):
-                subcmdinfo = _SubCommandBuilder(
-                    is_group=options.is_group(subcommand),
+            is_group = options.is_group(subcommand)
+            formated_name = options.name_format(is_group, subcommand, name)
+
+            if isinstance(subcommand, click.BaseCommand):
+                user_commands.append((subcommand, formated_name))
+
+            elif callable(subcommand):
+                cmd_builder = _SubCommandBuilder(
+                    is_group=is_group,
                     command=subcommand,
                     name=name,
-                    options=options
+                    formated_name=formated_name
                 )
                 # group by callable so we can detect alias
-                cmd_builders_map.setdefault(subcommand, []).append(subcmdinfo)
+                cmd_builders_map.setdefault(subcommand, []).append(cmd_builder)
 
         # prepare subcommands attrs
         for subcommand in cmd_builders_map:
@@ -447,11 +453,11 @@ def click_app(cls: type = None, **kwargs) -> click.Group:
             origin_name = options.find_origin_name(subcommand, names)
             alias = [x for x in names if x != origin_name]
 
-            for subcmdinfo in cmd_builder_list:
-                is_origin = origin_name == subcmdinfo.formated_name
-                subcmdinfo.update_name(is_origin)
+            for cmd_builder in cmd_builder_list:
+                is_origin = origin_name == cmd_builder.formated_name
+                cmd_builder.update_name(is_origin)
                 if alias: # has alias
-                    sub_attrs = subcmdinfo.attrs
+                    sub_attrs = cmd_builder.attrs
                     if is_origin:
                         sub_attrs['help'] += f'\n (alias: {", ".join(alias)})'
                     else: # alias
@@ -475,6 +481,10 @@ def click_app(cls: type = None, **kwargs) -> click.Group:
                 if is_objectmethod:
                     adapter.args_adapters.pop(0) # remove arg `self`
                 group.command(**cmd_builder.attrs)(adapter.get_wrapped_func())
+
+        # add user commands:
+        for user_command in user_commands:
+            group.add_command(*user_command)
 
         return group
 
