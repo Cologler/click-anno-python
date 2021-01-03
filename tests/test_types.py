@@ -76,6 +76,27 @@ def test_enum():
     assert result.exit_code == 0
     assert result.output == 'c_d\n'
 
+def test_enum_with_default():
+    from enum import Enum, auto
+
+    class Kind(Enum):
+        a = auto()
+        b = auto()
+        c_d = auto()
+
+    @command
+    def func(kind: Kind = Kind.a):
+        assert isinstance(kind, Kind)
+        click.echo(f'{kind.name}')
+
+    result = CliRunner().invoke(func, [])
+    assert result.exit_code == 0
+    assert result.output == 'a\n'
+
+    result = CliRunner().invoke(func, ['--kind', 'b'])
+    assert result.exit_code == 0
+    assert result.output == 'b\n'
+
 def test_bool():
     @command
     def func(is_ok: bool):
@@ -127,7 +148,7 @@ def test_bool_default_true():
     assert result.exit_code == 0
     assert result.output == 'False\n'
 
-def test_re():
+def test_register_param_type():
     from click_anno.types import register_param_type
 
     class ClassA:
