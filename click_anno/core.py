@@ -16,32 +16,7 @@ import click.utils
 from .injectors import Injector, get_injector
 from .snake_case import convert as sc_convert
 from .types import flag, Enum, _EnumChoice, get_param_type
-
-_KEY_ATTRS = '__click_anno_attrs'
-
-def attrs(**kwargs):
-    '''
-    append attrs to command or group like:
-
-    ``` py
-    @click_app
-    @attrs(...)
-    class ...
-    ```
-
-    attrs will pass into `click` module.
-    '''
-    def wrapper(type_or_func):
-        attrs: dict = get_attrs(type_or_func, False)
-        attrs.update(kwargs)
-        setattr(type_or_func, _KEY_ATTRS, attrs)
-        return type_or_func
-    return wrapper
-
-
-def get_attrs(target, clone=True):
-    attrs = getattr(target, _KEY_ATTRS, {})
-    return attrs.copy() if clone else attrs
+from .utils import get_attrs
 
 
 class _Argument(click.Argument):

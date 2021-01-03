@@ -6,8 +6,11 @@
 # ----------
 
 from .core import (
-    click_app, command, attrs
+    click_app, command
 )
 from .injectors import (
     find, ensure, Injectable, inject
+)
+from .utils import (
+    attrs
 )
