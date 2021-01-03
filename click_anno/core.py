@@ -312,20 +312,20 @@ def command(func) -> click.Command:
     return click.command(**attrs)(wrapped_func)
 
 
-def create_init_wrapper(cls):
+def _create_init_wrapper(cls):
     @functools.wraps(cls)
     def init_wrapper(*args, **kwargs):
         ctx = click.get_current_context()
         ctx.__instance = cls(*args, **kwargs)
     return init_wrapper
 
-def create_method_wrapper(func):
+def _create_method_wrapper(func):
     @functools.wraps(func)
-    def method_wrapper(*args, **kwargs):
+    def wrapper(*args, **kwargs):
         ctx = click.get_current_context()
         instance = ctx.parent.__instance
         return func(instance, *args, **kwargs)
-    return method_wrapper
+    return wrapper
 
 
 class GroupBuilderOptions:
@@ -422,7 +422,7 @@ def click_app(cls: type = None, **kwargs) -> click.Group:
 
     def make_group(cls: type, parent: click.Group, attrs: dict):
         'make group from a class'
-        adapter = CallableAdapter(create_init_wrapper(cls))
+        adapter = CallableAdapter(_create_init_wrapper(cls))
         adapter.args_adapters.extend(ArgumentAdapter.from_callable(cls))
         group = (parent or click).group(**attrs)(adapter.get_wrapped_func())
 
@@ -464,9 +464,15 @@ def click_app(cls: type = None, **kwargs) -> click.Group:
             if cmd_builder.is_group:
                 make_group(cmd_builder.command, group, cmd_builder.attrs)
             else:
-                adapter = CallableAdapter(create_method_wrapper(cmd_builder.command))
+                is_objectmethod = not isinstance(cmd_builder.command, (classmethod, staticmethod))
+                if is_objectmethod:
+                    callable_wrapper = _create_method_wrapper(cmd_builder.command)
+                else:
+                    callable_wrapper = cmd_builder.command
+                adapter = CallableAdapter(callable_wrapper)
                 adapter.args_adapters.extend(ArgumentAdapter.from_callable(cmd_builder.command))
-                adapter.args_adapters.pop(0) # remove arg `self`
+                if is_objectmethod:
+                    adapter.args_adapters.pop(0) # remove arg `self`
                 group.command(**cmd_builder.attrs)(adapter.get_wrapped_func())
 
         return group
