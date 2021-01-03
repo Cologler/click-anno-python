@@ -352,6 +352,11 @@ class GroupBuilderOptions:
         return name.lower().replace('_', '-')
 
     def is_group(self, command) -> bool:
+        '''
+        check if the command is a group or not.
+
+        by default, only the sub class is a group.
+        '''
         return isinstance(command, type)
 
     def name_format(self, command, name: str) -> str:
@@ -370,16 +375,22 @@ class GroupBuilderOptions:
         assert names
         return names[0]
 
+    def iter_subcommands_not_inherit(self, cls):
+        for name, sub_cmd in vars(cls).items():
+            if name[:1] != '_':
+                yield name, sub_cmd
 
-def _iter_subcommands_not_inherit(cls):
-    for name, sub_cmd in vars(cls).items():
-        if name[:1] != '_':
-            yield name, sub_cmd
+    def iter_subcommands_allow_inherit(self, cls):
+        for name in dir(cls):
+            if name[:1] != '_':
+                yield name, getattr(cls, name)
 
-def _iter_subcommands_allow_inherit(cls):
-    for name in dir(cls):
-        if name[:1] != '_':
-            yield name, getattr(cls, name)
+    def iter_subcommands(self, cls):
+        if self.allow_inherit:
+            return self.iter_subcommands_allow_inherit(cls)
+        else:
+            return self.iter_subcommands_not_inherit(cls)
+
 
 class _SubCommandBuilder:
     def __init__(self, is_group: bool, command, name: str, options: GroupBuilderOptions):
@@ -415,14 +426,9 @@ def click_app(cls: type = None, **kwargs) -> click.Group:
         adapter.args_adapters.extend(ArgumentAdapter.from_callable(cls))
         group = (parent or click).group(**attrs)(adapter.get_wrapped_func())
 
-        if options.allow_inherit:
-            iter_subcommands = _iter_subcommands_allow_inherit(cls)
-        else:
-            iter_subcommands = _iter_subcommands_not_inherit(cls)
-
         # list subcommands
-        subcmdinfo_map = {}
-        for name, subcommand in iter_subcommands:
+        cmd_builders_map = {}
+        for name, subcommand in list(options.iter_subcommands(cls)):
             if callable(subcommand):
                 subcmdinfo = _SubCommandBuilder(
                     is_group=options.is_group(subcommand),
@@ -431,16 +437,16 @@ def click_app(cls: type = None, **kwargs) -> click.Group:
                     options=options
                 )
                 # group by callable so we can detect alias
-                subcmdinfo_map.setdefault(subcommand, []).append(subcmdinfo)
+                cmd_builders_map.setdefault(subcommand, []).append(subcmdinfo)
 
         # prepare subcommands attrs
-        for subcommand in subcmdinfo_map:
-            attrs_info_list: typing.List[_SubCommandBuilder] = subcmdinfo_map[subcommand]
-            names = [x.formated_name for x in attrs_info_list]
+        for subcommand in cmd_builders_map:
+            cmd_builder_list: typing.List[_SubCommandBuilder] = cmd_builders_map[subcommand]
+            names = [x.formated_name for x in cmd_builder_list]
             origin_name = options.find_origin_name(subcommand, names)
             alias = [x for x in names if x != origin_name]
 
-            for subcmdinfo in attrs_info_list:
+            for subcmdinfo in cmd_builder_list:
                 is_origin = origin_name == subcmdinfo.formated_name
                 subcmdinfo.update_name(is_origin)
                 if alias: # has alias
@@ -453,15 +459,15 @@ def click_app(cls: type = None, **kwargs) -> click.Group:
                         sub_attrs['hidden'] = True
 
         # add subcommands into group
-        for subcmdinfo in itertools.chain(*subcmdinfo_map.values()):
-            subcmdinfo: _SubCommandBuilder
-            if subcmdinfo.is_group:
-                make_group(subcmdinfo.command, group, subcmdinfo.attrs)
+        for cmd_builder in itertools.chain(*cmd_builders_map.values()):
+            cmd_builder: _SubCommandBuilder
+            if cmd_builder.is_group:
+                make_group(cmd_builder.command, group, cmd_builder.attrs)
             else:
-                adapter = CallableAdapter(create_method_wrapper(subcmdinfo.command))
-                adapter.args_adapters.extend(ArgumentAdapter.from_callable(subcmdinfo.command))
+                adapter = CallableAdapter(create_method_wrapper(cmd_builder.command))
+                adapter.args_adapters.extend(ArgumentAdapter.from_callable(cmd_builder.command))
                 adapter.args_adapters.pop(0) # remove arg `self`
-                group.command(**subcmdinfo.attrs)(adapter.get_wrapped_func())
+                group.command(**cmd_builder.attrs)(adapter.get_wrapped_func())
 
         return group
 
