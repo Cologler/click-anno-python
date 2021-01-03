@@ -280,6 +280,30 @@ class CallableAdapter:
         return func
 
 
+def anno(func=None) -> typing.Callable:
+    '''
+    convert all annotations as click decorators to decorate the function.
+
+    you need to manually decorate `click.command(...)` or `click.group(...)` on the returned function.
+
+    this also ignore all attrs that add via `click_anno.attrs`.
+
+    example:
+
+    ``` py
+    @click.command()
+    @anno
+    def act():
+        ...
+    ```
+    '''
+
+    def wrapper(func):
+        return CallableAdapter.from_func(func).get_wrapped_func()
+
+    return wrapper(func) if func else wrapper
+
+
 def command(func) -> click.Command:
     '''
     build a `function` as a `click.Command`.

@@ -6,7 +6,7 @@
 # ----------
 
 from .core import (
-    click_app, command
+    click_app, command, anno
 )
 from .injectors import (
     find, ensure, Injectable, inject

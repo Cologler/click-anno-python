@@ -5,12 +5,23 @@
 #
 # ----------
 
-from typing import Tuple
+from typing import *
 
 import click
 from click.testing import CliRunner
 
-from click_anno import click_app, command
+from click_anno import click_app, command, anno
+
+def test_anno():
+    @click.command()
+    @anno
+    def touch(filename):
+        click.echo(filename)
+
+    result = CliRunner().invoke(touch, ['foo.txt'])
+    assert result.exit_code == 0
+    assert result.output == 'foo.txt\n'
+
 
 def test_group():
     @click_app
