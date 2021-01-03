@@ -409,11 +409,11 @@ def click_app(cls: type = None, **kwargs) -> click.Group:
     options = GroupBuilderOptions()
     vars(options).update(kwargs)
 
-    def make_group(cls: type, group: click.Group, attrs: dict):
+    def make_group(cls: type, parent: click.Group, attrs: dict):
         'make group from a class'
         adapter = CallableAdapter(create_init_wrapper(cls))
         adapter.args_adapters.extend(ArgumentAdapter.from_callable(cls))
-        group = group.group(**attrs)(adapter.get_wrapped_func())
+        group = (parent or click).group(**attrs)(adapter.get_wrapped_func())
 
         if options.allow_inherit:
             iter_subcommands = _iter_subcommands_allow_inherit(cls)
@@ -468,6 +468,6 @@ def click_app(cls: type = None, **kwargs) -> click.Group:
     def warpper(cls) -> click.Group:
         attrs: dict = get_attrs(cls)
         attrs.setdefault('name', options.group_name_format(cls, cls.__name__))
-        return make_group(cls, click, attrs)
+        return make_group(cls, None, attrs)
 
     return warpper(cls) if cls else warpper
