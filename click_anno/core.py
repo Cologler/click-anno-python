@@ -32,7 +32,9 @@ def attrs(**kwargs):
     attrs will pass into `click` module.
     '''
     def wrapper(type_or_func):
-        setattr(type_or_func, _KEY_ATTRS, dict(kwargs))
+        attrs: dict = get_attrs(type_or_func, False)
+        attrs.update(kwargs)
+        setattr(type_or_func, _KEY_ATTRS, attrs)
         return type_or_func
     return wrapper
 
