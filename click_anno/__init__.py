@@ -14,3 +14,13 @@ from .injectors import (
 from .utils import (
     attrs
 )
+from .types import (
+    flag, register_param_type
+)
+
+__all__ = [
+    'click_app', 'command', 'anno',
+    'find', 'ensure', 'Injectable', 'inject',
+    'attrs',
+    'flag', 'register_param_type',
+]

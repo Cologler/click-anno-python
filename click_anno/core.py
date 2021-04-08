@@ -282,7 +282,8 @@ class CallableAdapter:
 
 def anno(func=None) -> typing.Callable:
     '''
-    convert all annotations as click decorators to decorate the function.
+    convert all annotations as click decorators to decorate the `func`,
+    return the decorated function.
 
     you need to manually decorate `click.command(...)` or `click.group(...)` on the returned function.
 
