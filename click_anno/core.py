@@ -216,12 +216,8 @@ class ArgumentAdapter:
                         raise ValueError(\
                             f'anno of param {self._parameter_name} must be tuple or typing.Tuple[?, ...]')
                 else:
-                    if any(x is not args[0] for x in args):
-                        raise ValueError(\
-                            f'anno of param {self._parameter_name} must be same types')
-                    else:
-                        self._builder.set_nargs(len(args))
-                        self._builder.attrs['type'] = args[0]
+                    self._builder.set_nargs(len(args))
+                    self._builder.attrs['type'] = tuple(args)
             else:
                 raise ValueError('generic type must be typing.Tuple')
 

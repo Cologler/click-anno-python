@@ -71,6 +71,14 @@ def test_tuples_as_multi_value_options():
     assert result.exit_code == 0
     assert result.output == 'name=peter id=1338\n'
 
+    @command
+    def putitem(*, item: Tuple[str, int]):
+        click.echo('name=%s id=%d' % item)
+
+    result = CliRunner().invoke(putitem, ['--item', 'peter', '1338'])
+    assert result.exit_code == 0
+    assert result.output == 'name=peter id=1338\n'
+
 def test_boolean_flags():
     import click
     from click_anno import command

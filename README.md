@@ -131,6 +131,11 @@ import click_anno
 @click_anno.command
 def putitem(*, item: (str, int)):
     click.echo('name=%s id=%d' % item)
+
+# or
+@click_anno.command
+def putitem(*, item: Tuple[str, int]):
+    click.echo('name=%s id=%d' % item)
 ```
 
 ### Boolean Flags
