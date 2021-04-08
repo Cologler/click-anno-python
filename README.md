@@ -6,6 +6,10 @@
 
 use annotation to create click app.
 
+## Alternatives
+
+- [Typer](https://github.com/tiangolo/typer)
+
 ## Compare with click api
 
 ### Basic Arguments

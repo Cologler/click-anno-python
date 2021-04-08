@@ -283,7 +283,7 @@ def anno(func=None) -> typing.Callable:
 
     you need to manually decorate `click.command(...)` or `click.group(...)` on the returned function.
 
-    this also ignore all attrs that add via `click_anno.attrs`.
+    this also ignore all attrs that added via `click_anno.attrs`.
 
     example:
 
