@@ -33,20 +33,6 @@ def test_args_positional_required():
     assert result.exit_code == 0
     assert result.output == 'Hello Peter!\n'
 
-@pytest.mark.skipif(sys.version_info < (3, 8), reason="syntax added on 3.8")
-def test_args_positional_optional():
-    @command
-    def func(name='Guest', /):
-        click.echo('Hello %s!' % name)
-
-    result = CliRunner().invoke(func, ['Peter'])
-    assert result.exit_code == 0
-    assert result.output == 'Hello Peter!\n'
-
-    result = CliRunner().invoke(func, [])
-    assert result.exit_code == 0
-    assert result.output == 'Hello Guest!\n'
-
 def test_args_positional_required_typed_by_annotation():
     @command
     def func(count: int):
