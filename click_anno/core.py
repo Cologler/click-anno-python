@@ -309,7 +309,7 @@ def command(func) -> click.Command:
     '''
     build a `function` as a `click.Command`.
     '''
-    wrapped_func = CallableAdapter.from_func(func).get_wrapped_func()
+    wrapped_func = anno(func)
     attrs = get_attrs(func, False)
     return click.command(**attrs)(wrapped_func)
 
