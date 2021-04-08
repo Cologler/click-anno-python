@@ -421,11 +421,11 @@ def click_app(cls: type = None, **kwargs) -> click.Group:
     options = GroupBuilderOptions()
     vars(options).update(kwargs)
 
-    def make_group(cls: type, parent: click.Group, attrs: dict):
+    def make_group(cls: type, attrs: dict):
         'make group from a class'
         adapter = CallableAdapter(_create_init_wrapper(cls))
         adapter.args_adapters.extend(ArgumentAdapter.from_callable(cls))
-        group = (parent or click).group(**attrs)(adapter.get_wrapped_func())
+        group = click.group(**attrs)(adapter.get_wrapped_func())
 
         # list subcommands
         user_commands = []
@@ -470,7 +470,9 @@ def click_app(cls: type = None, **kwargs) -> click.Group:
         for cmd_builder in itertools.chain(*cmd_builders_map.values()):
             cmd_builder: _SubCommandBuilder
             if cmd_builder.is_group:
-                make_group(cmd_builder.command, group, cmd_builder.attrs)
+                group.add_command(
+                    make_group(cmd_builder.command, cmd_builder.attrs)
+                )
             else:
                 is_objectmethod = not isinstance(cmd_builder.command, (classmethod, staticmethod))
                 if is_objectmethod:
@@ -492,6 +494,6 @@ def click_app(cls: type = None, **kwargs) -> click.Group:
     def warpper(cls) -> click.Group:
         attrs: dict = get_attrs(cls)
         attrs.setdefault('name', options.group_name_format(cls, cls.__name__))
-        return make_group(cls, None, attrs)
+        return make_group(cls, attrs)
 
     return warpper(cls) if cls else warpper
