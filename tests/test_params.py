@@ -6,6 +6,9 @@
 # ----------
 
 from typing import Tuple
+import sys
+
+import pytest
 
 import click
 from click.testing import CliRunner
@@ -30,6 +33,7 @@ def test_args_positional_required():
     assert result.exit_code == 0
     assert result.output == 'Hello Peter!\n'
 
+@pytest.mark.skipif(sys.version_info < (3, 8), reason="syntax added on 3.8")
 def test_args_positional_optional():
     @command
     def func(name='Guest', /):
