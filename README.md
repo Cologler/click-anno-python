@@ -6,6 +6,10 @@
 
 use annotation to create click app.
 
+## Alternatives
+
+- [Typer](https://github.com/tiangolo/typer)
+
 ## Compare with click api
 
 ### Basic Arguments
@@ -131,6 +135,11 @@ import click_anno
 @click_anno.command
 def putitem(*, item: (str, int)):
     click.echo('name=%s id=%d' % item)
+
+# or
+@click_anno.command
+def putitem(*, item: Tuple[str, int]):
+    click.echo('name=%s id=%d' % item)
 ```
 
 ### Boolean Flags
@@ -189,6 +198,36 @@ class App:
 
     def sync(self):
         click.echo('Syncing')
+```
+
+### Group Invocation Without Command
+
+``` py
+# click
+@click.group(invoke_without_command=True)
+@click.pass_context
+def cli(ctx):
+    if ctx.invoked_subcommand is None:
+        click.echo('I was invoked without subcommand')
+    else:
+        click.echo('I am about to invoke %s' % ctx.invoked_subcommand)
+
+@cli.command()
+def sync():
+    click.echo('The subcommand')
+
+# click_anno
+@click_app
+@attrs(invoke_without_command=True)
+class App:
+    def __init__(self, ctx: click.Context):
+        if ctx.invoked_subcommand is None:
+            click.echo('I was invoked without subcommand')
+        else:
+            click.echo('I am about to invoke %s' % ctx.invoked_subcommand)
+
+    def sync(self):
+        click.echo('The subcommand')
 ```
 
 ## Extensions

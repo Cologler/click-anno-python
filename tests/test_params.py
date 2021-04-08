@@ -6,13 +6,16 @@
 # ----------
 
 from typing import Tuple
+import sys
+
+import pytest
 
 import click
 from click.testing import CliRunner
 
 from click_anno import command
 
-def test_non_arg():
+def test_args_none():
     @command
     def func():
         click.echo('Hello World!')
@@ -21,7 +24,7 @@ def test_non_arg():
     assert result.exit_code == 0
     assert result.output == 'Hello World!\n'
 
-def test_one_required_args():
+def test_args_positional_required():
     @command
     def func(name):
         click.echo('Hello %s!' % name)
@@ -30,7 +33,7 @@ def test_one_required_args():
     assert result.exit_code == 0
     assert result.output == 'Hello Peter!\n'
 
-def test_one_required_typed_args_by_annotation():
+def test_args_positional_required_typed_by_annotation():
     @command
     def func(count: int):
         assert isinstance(count, int)
@@ -40,7 +43,32 @@ def test_one_required_typed_args_by_annotation():
     assert result.exit_code == 0
     assert result.output == 'Hello 1!\n'
 
-def test_one_optional_typed_args_by_defval():
+def test_args_keyword_required():
+    @command
+    def func(*, count):
+        click.echo('Hello %s!' % count)
+
+    result_with_value = CliRunner().invoke(func, ['--count', '1'])
+    assert result_with_value.exit_code == 0
+    assert result_with_value.output == 'Hello 1!\n'
+
+    result_without_value = CliRunner().invoke(func, [])
+    assert result_without_value.exit_code != 0
+
+def test_args_keyword_required_typed_by_annotation():
+    @command
+    def func(*, count: int):
+        assert isinstance(count, int)
+        click.echo('Hello %s!' % count)
+
+    result_with_value = CliRunner().invoke(func, ['--count', '1'])
+    assert result_with_value.exit_code == 0
+    assert result_with_value.output == 'Hello 1!\n'
+
+    result_without_value = CliRunner().invoke(func, [])
+    assert result_without_value.exit_code != 0
+
+def test_args_keyword_optional_typed_by_default():
     @command
     def func(count=3):
         assert isinstance(count, int)

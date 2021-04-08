@@ -8,7 +8,17 @@
 from enum import Enum
 from click import Choice, ParamType
 
-flag = object()
+
+class flag:
+    '''
+    represent the flag style boolean type.
+
+    `click` already handle boolean value with `BoolParamType`,
+    so we need a new type to represent the flag style boolean type.
+
+    because of the limit from python, `flag` is unable to inherit `bool`
+    '''
+    pass
 
 class _EnumChoice(Choice):
     def __init__(self, enum: Enum):

@@ -5,12 +5,22 @@
 #
 # ----------
 
-from typing import Tuple
+from typing import *
 
 import click
 from click.testing import CliRunner
 
-from click_anno import click_app, command
+from click_anno import click_app, command, anno
+
+def test_anno():
+    @click.command()
+    @anno
+    def touch(filename):
+        click.echo(filename)
+
+    result = CliRunner().invoke(touch, ['foo.txt'])
+    assert result.exit_code == 0
+    assert result.output == 'foo.txt\n'
 
 def test_group():
     @click_app
@@ -104,4 +114,15 @@ def test_subcommand_name_should_remove_last_underline():
 
     result = CliRunner().invoke(App, ['import'])
     assert result.output.splitlines()[0] == "imported"
+    assert result.exit_code == 0
+
+def test_user_command():
+    @click_app
+    class App:
+        @click.command()
+        def touch(): # did not have 'self'
+            click.echo('touch')
+
+    result = CliRunner().invoke(App, ['touch'])
+    assert result.output.splitlines()[0] == "touch"
     assert result.exit_code == 0

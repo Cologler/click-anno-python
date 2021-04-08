@@ -10,6 +10,10 @@ import abc
 import click
 
 class Injector(abc.ABC):
+    '''
+    a argument source from runtime instead of parse from command line.
+    '''
+
     @abc.abstractmethod
     def get_value(self):
         raise NotImplementedError
@@ -55,6 +59,10 @@ def ensure(object_type: type):
 
 
 class Injectable(abc.ABC):
+    '''
+    the base interface for a injectable type.
+    '''
+
     @classmethod
     @abc.abstractmethod
     def __inject__(cls):
@@ -72,10 +80,11 @@ _INJECTOR_MAPS = {}
 
 def inject(annotation: type, factory):
     '''
-    mark a type should be auto inject by call `factory` instead of parse from command line.
+    declare the type that should be inject by call the `factory` instead of parse from command line.
     '''
     if not callable(factory):
         raise TypeError
+
     _INJECTOR_MAPS[annotation] = _CallableInjector(factory)
 
 

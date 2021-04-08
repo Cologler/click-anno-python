@@ -16,30 +16,7 @@ import click.utils
 from .injectors import Injector, get_injector
 from .snake_case import convert as sc_convert
 from .types import flag, Enum, _EnumChoice, get_param_type
-
-_KEY_ATTRS = '__click_anno_attrs'
-
-def attrs(**kwargs):
-    '''
-    append attrs to command or group like:
-
-    ``` py
-    @click_app
-    @attrs(...)
-    class ...
-    ```
-
-    attrs will pass into `click` module.
-    '''
-    def wrapper(type_or_func):
-        setattr(type_or_func, _KEY_ATTRS, dict(kwargs))
-        return type_or_func
-    return wrapper
-
-
-def get_attrs(target, clone=True):
-    attrs = getattr(target, _KEY_ATTRS, {})
-    return attrs.copy() if clone else attrs
+from .utils import get_attrs
 
 
 class _Argument(click.Argument):
@@ -239,12 +216,8 @@ class ArgumentAdapter:
                         raise ValueError(\
                             f'anno of param {self._parameter_name} must be tuple or typing.Tuple[?, ...]')
                 else:
-                    if any(x is not args[0] for x in args):
-                        raise ValueError(\
-                            f'anno of param {self._parameter_name} must be same types')
-                    else:
-                        self._builder.set_nargs(len(args))
-                        self._builder.attrs['type'] = args[0]
+                    self._builder.set_nargs(len(args))
+                    self._builder.attrs['type'] = tuple(args)
             else:
                 raise ValueError('generic type must be typing.Tuple')
 
@@ -303,29 +276,54 @@ class CallableAdapter:
         return func
 
 
+def anno(func=None) -> typing.Callable:
+    '''
+    convert all annotations as click decorators to decorate the `func`,
+    return the decorated function.
+
+    you need to manually decorate `click.command(...)` or `click.group(...)` on the returned function.
+
+    this also ignore all attrs that added via `click_anno.attrs`.
+
+    example:
+
+    ``` py
+    @click.command()
+    @anno
+    def act():
+        ...
+    ```
+    '''
+
+    def wrapper(func):
+        return CallableAdapter.from_func(func).get_wrapped_func()
+
+    return wrapper(func) if func else wrapper
+
+
 def command(func) -> click.Command:
     '''
     build a `function` as a `click.Command`.
     '''
-    wrapped_func = CallableAdapter.from_func(func).get_wrapped_func()
+    wrapped_func = anno(func)
     attrs = get_attrs(func, False)
     return click.command(**attrs)(wrapped_func)
 
 
-def create_init_wrapper(cls):
+def _create_init_wrapper(cls):
     @functools.wraps(cls)
     def init_wrapper(*args, **kwargs):
         ctx = click.get_current_context()
         ctx.__instance = cls(*args, **kwargs)
     return init_wrapper
 
-def create_method_wrapper(func):
+def _create_method_wrapper(func):
     @functools.wraps(func)
-    def method_wrapper(*args, **kwargs):
+    def wrapper(*args, **kwargs):
         ctx = click.get_current_context()
         instance = ctx.parent.__instance
         return func(instance, *args, **kwargs)
-    return method_wrapper
+    return wrapper
 
 
 class GroupBuilderOptions:
@@ -352,44 +350,61 @@ class GroupBuilderOptions:
         return name.lower().replace('_', '-')
 
     def is_group(self, command) -> bool:
-        return isinstance(command, type)
+        '''
+        check if the command is a group or not.
 
-    def name_format(self, command, name: str) -> str:
+        by default, only the sub class is a group.
+        '''
+        return isinstance(command, type) or isinstance(command, click.MultiCommand)
+
+    def name_format(self, is_group: bool, command, name: str) -> str:
         'format name by `command` and `name`'
-        if self.is_group(command):
+        if is_group:
             return self.group_name_format(command, name)
         else:
             return self.command_name_format(command, name)
 
     def find_origin_name(self, command, names: typing.List[str]) -> str:
         '''
-        find origin name so we known which is alias, which is not.
+        find origin name so we known which is alias, which is not;
+        the origin name must in `names`.
 
-        NOTE: the item of names is formated name.
+        NOTE: the item of names is *NOT* the formated name.
         '''
         assert names
-        return names[0]
+        name = command.__name__
+        if name in names:
+            return name
+        return names[0] # all are alias, return the first one.
 
+    def iter_subcommands_not_inherit(self, cls):
+        for name, sub_cmd in vars(cls).items():
+            if name[:1] != '_':
+                yield name, sub_cmd
 
-def _iter_subcommands_not_inherit(cls):
-    for name, sub_cmd in vars(cls).items():
-        if name[:1] != '_':
-            yield name, sub_cmd
+    def iter_subcommands_allow_inherit(self, cls):
+        for name in dir(cls):
+            if name[:1] != '_':
+                yield name, getattr(cls, name)
 
-def _iter_subcommands_allow_inherit(cls):
-    for name in dir(cls):
-        if name[:1] != '_':
-            yield name, getattr(cls, name)
+    def iter_subcommands(self, cls):
+        if self.allow_inherit:
+            return self.iter_subcommands_allow_inherit(cls)
+        else:
+            return self.iter_subcommands_not_inherit(cls)
+
 
 class _SubCommandBuilder:
-    def __init__(self, is_group: bool, command, name: str, options: GroupBuilderOptions):
+    def __init__(self, is_group: bool, command, name: str, formated_name: str):
         self.is_group = is_group
         self.command = command
         self.name = name
         self.attrs: dict = get_attrs(command)
-        self.options = options
+        self.formated_name = formated_name
+
+        # set only if user use default value
         self.attrs.setdefault('help', str(command.__doc__ or ''))
-        self.formated_name = self.options.name_format(self.command, self.name)
+        self.attrs.setdefault('name', self.formated_name)
 
     def update_name(self, is_default):
         'update name to `attrs`'
@@ -409,65 +424,81 @@ def click_app(cls: type = None, **kwargs) -> click.Group:
     options = GroupBuilderOptions()
     vars(options).update(kwargs)
 
-    def make_group(cls: type, group: click.Group, attrs: dict):
+    def make_group(cls: type, attrs: dict):
         'make group from a class'
-        adapter = CallableAdapter(create_init_wrapper(cls))
+        adapter = CallableAdapter(_create_init_wrapper(cls))
         adapter.args_adapters.extend(ArgumentAdapter.from_callable(cls))
-        group = group.group(**attrs)(adapter.get_wrapped_func())
-
-        if options.allow_inherit:
-            iter_subcommands = _iter_subcommands_allow_inherit(cls)
-        else:
-            iter_subcommands = _iter_subcommands_not_inherit(cls)
+        group = click.group(**attrs)(adapter.get_wrapped_func())
 
         # list subcommands
-        subcmdinfo_map = {}
-        for name, subcommand in iter_subcommands:
-            if callable(subcommand):
-                subcmdinfo = _SubCommandBuilder(
-                    is_group=options.is_group(subcommand),
+        user_commands = []
+        map_by_cmd = {}
+        for name, subcommand in list(options.iter_subcommands(cls)):
+            is_group = options.is_group(subcommand)
+            formated_name = options.name_format(is_group, subcommand, name)
+
+            if isinstance(subcommand, click.BaseCommand):
+                user_commands.append((subcommand, formated_name))
+
+            elif callable(subcommand):
+                builder = _SubCommandBuilder(
+                    is_group=is_group,
                     command=subcommand,
                     name=name,
-                    options=options
+                    formated_name=formated_name
                 )
+                user_commands.append(builder)
                 # group by callable so we can detect alias
-                subcmdinfo_map.setdefault(subcommand, []).append(subcmdinfo)
+                map_by_cmd.setdefault(subcommand, []).append(builder)
 
-        # prepare subcommands attrs
-        for subcommand in subcmdinfo_map:
-            attrs_info_list: typing.List[_SubCommandBuilder] = subcmdinfo_map[subcommand]
-            names = [x.formated_name for x in attrs_info_list]
-            origin_name = options.find_origin_name(subcommand, names)
-            alias = [x for x in names if x != origin_name]
+        # prepare attrs, handle alias, etc.
+        for subcommand in map_by_cmd:
+            builder_list: typing.List[_SubCommandBuilder] = map_by_cmd[subcommand]
+            if len(builder_list) > 1: # has alias
+                names = [x.name for x in builder_list]
+                origin_name = options.find_origin_name(subcommand, names)
+                assert origin_name in names, 'the origin name must in `names`'
+                origin = [x for x in builder_list if x.name == origin_name][0]
+                alias  = [x for x in builder_list if x.name != origin_name]
+                assert len(alias) < len(names)
+                alias_str = ", ".join(x.formated_name for x in alias)
 
-            for subcmdinfo in attrs_info_list:
-                is_origin = origin_name == subcmdinfo.formated_name
-                subcmdinfo.update_name(is_origin)
-                if alias: # has alias
-                    sub_attrs = subcmdinfo.attrs
-                    if is_origin:
-                        sub_attrs['help'] += f'\n (alias: {", ".join(alias)})'
-                    else: # alias
-                        sub_attrs['help'] += f'\n (alias of: {origin_name})'
-                        # hide alias
+                for builder in builder_list:
+                    sub_attrs = builder.attrs
+                    if origin_name == builder.name:
+                        sub_attrs['help'] += f'\n (alias: {alias_str})'
+                    else: # is alias
+                        sub_attrs['help'] += f'\n (alias of: {origin.formated_name})'
+                        # must use default command name to call
+                        sub_attrs['name'] = builder.formated_name
+                        # hide alias:
                         sub_attrs['hidden'] = True
 
         # add subcommands into group
-        for subcmdinfo in itertools.chain(*subcmdinfo_map.values()):
-            subcmdinfo: _SubCommandBuilder
-            if subcmdinfo.is_group:
-                make_group(subcmdinfo.command, group, subcmdinfo.attrs)
+        for item in user_commands:
+            if isinstance(item, _SubCommandBuilder):
+                if item.is_group:
+                    builded_command = make_group(item.command, item.attrs)
+                else:
+                    is_objectmethod = not isinstance(item.command, (classmethod, staticmethod))
+                    if is_objectmethod:
+                        callable_wrapper = _create_method_wrapper(item.command)
+                    else:
+                        callable_wrapper = item.command
+                    adapter = CallableAdapter(callable_wrapper)
+                    adapter.args_adapters.extend(ArgumentAdapter.from_callable(item.command))
+                    if is_objectmethod:
+                        adapter.args_adapters.pop(0) # remove arg `self`
+                    builded_command = click.command(**item.attrs)(adapter.get_wrapped_func())
+                group.add_command(builded_command)
             else:
-                adapter = CallableAdapter(create_method_wrapper(subcmdinfo.command))
-                adapter.args_adapters.extend(ArgumentAdapter.from_callable(subcmdinfo.command))
-                adapter.args_adapters.pop(0) # remove arg `self`
-                group.command(**subcmdinfo.attrs)(adapter.get_wrapped_func())
+                group.add_command(*item)
 
         return group
 
     def warpper(cls) -> click.Group:
         attrs: dict = get_attrs(cls)
         attrs.setdefault('name', options.group_name_format(cls, cls.__name__))
-        return make_group(cls, click, attrs)
+        return make_group(cls, attrs)
 
     return warpper(cls) if cls else warpper

@@ -10,7 +10,7 @@ from typing import Tuple
 import click
 from click.testing import CliRunner
 
-from click_anno import command, click_app
+from click_anno import command, click_app, attrs
 
 def test_basic_arguments():
     @command
@@ -71,6 +71,14 @@ def test_tuples_as_multi_value_options():
     assert result.exit_code == 0
     assert result.output == 'name=peter id=1338\n'
 
+    @command
+    def putitem(*, item: Tuple[str, int]):
+        click.echo('name=%s id=%d' % item)
+
+    result = CliRunner().invoke(putitem, ['--item', 'peter', '1338'])
+    assert result.exit_code == 0
+    assert result.output == 'name=peter id=1338\n'
+
 def test_boolean_flags():
     import click
     from click_anno import command
@@ -106,6 +114,27 @@ def test_group():
     result = CliRunner().invoke(App, ['sync'])
     assert result.exit_code == 0
     assert result.output == 'Running\nSyncing\n'
+
+def test_group_invocation_without_command():
+    @click_app
+    @attrs(invoke_without_command=True)
+    class App:
+        def __init__(self, ctx: click.Context):
+            if ctx.invoked_subcommand is None:
+                click.echo('I was invoked without subcommand')
+            else:
+                click.echo('I am about to invoke %s' % ctx.invoked_subcommand)
+
+        def sync(self):
+            click.echo('The subcommand')
+
+    result = CliRunner().invoke(App, [])
+    assert result.exit_code == 0
+    assert result.output == 'I was invoked without subcommand\n'
+
+    result = CliRunner().invoke(App, ['sync'])
+    assert result.exit_code == 0
+    assert result.output == 'I am about to invoke sync\nThe subcommand\n'
 
 def test_alias():
     @click_app

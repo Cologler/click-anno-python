@@ -21,7 +21,7 @@ setup(
     long_description_content_type='text/markdown',
     packages=find_packages(),
     name='click_anno',
-    version='0.1.1',
+    version='0.1.4',
     description='',
     keywords=['click'],
     author='Cologler',
