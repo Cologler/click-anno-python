@@ -43,6 +43,31 @@ def test_args_positional_required_typed_by_annotation():
     assert result.exit_code == 0
     assert result.output == 'Hello 1!\n'
 
+def test_args_keyword_required():
+    @command
+    def func(*, count):
+        click.echo('Hello %s!' % count)
+
+    result_with_value = CliRunner().invoke(func, ['--count', '1'])
+    assert result_with_value.exit_code == 0
+    assert result_with_value.output == 'Hello 1!\n'
+
+    result_without_value = CliRunner().invoke(func, [])
+    assert result_without_value.exit_code != 0
+
+def test_args_keyword_required_typed_by_annotation():
+    @command
+    def func(*, count: int):
+        assert isinstance(count, int)
+        click.echo('Hello %s!' % count)
+
+    result_with_value = CliRunner().invoke(func, ['--count', '1'])
+    assert result_with_value.exit_code == 0
+    assert result_with_value.output == 'Hello 1!\n'
+
+    result_without_value = CliRunner().invoke(func, [])
+    assert result_without_value.exit_code != 0
+
 def test_args_keyword_optional_typed_by_default():
     @command
     def func(count=3):
