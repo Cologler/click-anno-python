@@ -12,7 +12,7 @@ from click.testing import CliRunner
 
 from click_anno import command
 
-def test_non_arg():
+def test_args_none():
     @command
     def func():
         click.echo('Hello World!')
@@ -21,7 +21,7 @@ def test_non_arg():
     assert result.exit_code == 0
     assert result.output == 'Hello World!\n'
 
-def test_one_required_args():
+def test_args_positional_required():
     @command
     def func(name):
         click.echo('Hello %s!' % name)
@@ -30,7 +30,20 @@ def test_one_required_args():
     assert result.exit_code == 0
     assert result.output == 'Hello Peter!\n'
 
-def test_one_required_typed_args_by_annotation():
+def test_args_positional_optional():
+    @command
+    def func(name='Guest', /):
+        click.echo('Hello %s!' % name)
+
+    result = CliRunner().invoke(func, ['Peter'])
+    assert result.exit_code == 0
+    assert result.output == 'Hello Peter!\n'
+
+    result = CliRunner().invoke(func, [])
+    assert result.exit_code == 0
+    assert result.output == 'Hello Guest!\n'
+
+def test_args_positional_required_typed_by_annotation():
     @command
     def func(count: int):
         assert isinstance(count, int)
@@ -40,7 +53,7 @@ def test_one_required_typed_args_by_annotation():
     assert result.exit_code == 0
     assert result.output == 'Hello 1!\n'
 
-def test_one_optional_typed_args_by_defval():
+def test_args_keyword_optional_typed_by_default():
     @command
     def func(count=3):
         assert isinstance(count, int)
